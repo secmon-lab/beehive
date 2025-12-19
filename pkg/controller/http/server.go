@@ -1,7 +1,6 @@
 package http
 
 import (
-	"io"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/usecase"
 	"github.com/secmon-lab/beehive/pkg/utils/logging"
+	"github.com/secmon-lab/beehive/pkg/utils/safe"
 )
 
 type Server struct {
@@ -131,9 +131,9 @@ func spaHandler(staticFS fs.FS) http.HandlerFunc {
 		if file, err := staticFS.Open(urlPath); err != nil {
 			// File not found, serve index.html for SPA routing
 			if indexFile, err := staticFS.Open("index.html"); err == nil {
-				defer indexFile.Close()
+				defer safe.Close(r.Context(), indexFile)
 				w.Header().Set("Content-Type", "text/html")
-				io.Copy(w, indexFile)
+				safe.Copy(r.Context(), w, indexFile)
 				return
 			}
 
@@ -142,7 +142,7 @@ func spaHandler(staticFS fs.FS) http.HandlerFunc {
 			return
 		} else {
 			// File exists, close it and let fileServer handle it
-			file.Close()
+			safe.Close(r.Context(), file)
 		}
 
 		// Serve the requested file using the file server
