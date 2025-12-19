@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+beehive
+frontend/node_modules
+
+# Development
+tmp
+.env
+*.test
+coverage.*
+
+# IDE
+.vscode
+.idea
+.claude
+.cckiro
+
+# Documentation (exclude development docs, include essential files)
+CLAUDE.md
+CONTRIBUTING.md
+CHANGELOG.md
+# Keep README.md and LICENSE in the image
