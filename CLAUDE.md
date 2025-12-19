@@ -4,21 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Warren is an AI agent and Slack-based security alert management tool. It processes security alerts, analyzes them using LLM (Gemini), and manages incident response through Slack integration.
+Beehive is an IoC (Indicator of Compromise) management system built with Go and React. It provides a GraphQL API for managing security indicators like IP addresses, domains, file hashes, and URLs, with support for threat intelligence integration and enrichment.
 
 ## Common Development Commands
 
 ### Building and Testing
+- `task` - Run default task (GraphQL code generation)
+- `task build` - Build the complete application (frontend + backend)
+- `task build:frontend` - Build frontend only
+- `task graphql` - Generate GraphQL code from schema
+- `task run` - Build and run the server
+- `task dev:frontend` - Run frontend development server
 - `go build` - Build the main binary
 - `go test ./...` - Run all tests
 - `go test ./pkg/path/to/package` - Run tests for specific package
-- `task` - Run default tasks (mock generation and GraphQL)
-- `task mock` (alias: `task m`) - Generate all mock files
-- `task graphql` - Generate GraphQL code from schema
 
 ### Code Generation
-- `go tool moq` - Generate mocks (handled by task commands)
-- `go tool gqlgen generate` - Generate GraphQL resolvers and types
+- `go tool gqlgen generate` - Generate GraphQL resolvers and types from schema
+- Mock generation planned for future when more interfaces are defined
 
 ## Important Development Guidelines
 
@@ -30,11 +33,10 @@ Warren is an AI agent and Slack-based security alert management tool. It process
 - **ALWAYS use `errors.Is(err, targetErr)` or `errors.As(err, &target)` for error type checking**
 - Error discrimination must be done by error types, not by parsing error messages
 
-### Testing with gt Package
-- Use `github.com/m-mizutani/gt` package for type-safe testing
-- Prefer Helper Driven Testing style over Table Driven Tests
-- Use Memory repository from `pkg/repository` instead of mocks for repository testing
-- Use mock implementations from `pkg/domain/mock`
+### Testing Best Practices
+- Use standard Go testing package
+- Use Memory repository from `pkg/repository/memory` for repository testing
+- Test both memory and firestore implementations when applicable
 
 ### Code Visibility
 - Do not expose unnecessary methods, variables and types
@@ -45,137 +47,69 @@ Warren is an AI agent and Slack-based security alert management tool. It process
 ### Core Structure
 The application follows Domain-Driven Design (DDD) with clean architecture:
 
-- `pkg/domain/` - Domain layer with business logic, interfaces, and models
-- `pkg/service/` - Application services implementing business operations
-- `pkg/controller/` - Interface adapters (HTTP, GraphQL, Slack)
-- `pkg/adapter/` - Infrastructure adapters (storage, external APIs)
+- `pkg/cli/` - CLI commands and configuration
+- `pkg/controller/` - Interface adapters
+  - `graphql/` - GraphQL resolvers
+  - `http/` - HTTP server and routing
+- `pkg/domain/` - Domain layer
+  - `interfaces/` - Repository and service interfaces
+  - `model/` - Domain models (IoC data structures)
 - `pkg/repository/` - Data persistence implementations
+  - `firestore/` - Firestore backend
+  - `memory/` - In-memory backend (testing/development)
 - `pkg/usecase/` - Application use cases orchestrating domain operations
+- `pkg/utils/` - Shared utilities (logging, etc.)
+- `frontend/` - React TypeScript application
+- `graphql/` - GraphQL schema definitions
 
 ### Key Components
 
-#### Alert Processing Pipeline
-- `pkg/domain/model/alert/` - Core alert model with metadata and embedding support
-- `pkg/usecase/alert_pipeline.go` - Main alert processing pipeline
-- Alerts are immutable and can be linked to at most one ticket
-- Uses AI to generate titles, descriptions, and semantic embeddings
+#### GraphQL API
+- Schema-first design using gqlgen
+- GraphQL playground available at `/graphiql` (configurable)
+- Type-safe resolvers in `pkg/controller/graphql/`
 
-**Pipeline Stages**:
-1. **Ingest Policy Evaluation** - Transform raw alert data into Alert objects
-2. **Metadata Generation** - Fill missing titles/descriptions using LLM
-3. **Enrich Policy Evaluation** - Execute enrichment tasks (query/agent)
-4. **Triage Policy Evaluation** - Apply final metadata and determine publish type
+#### Frontend
+- React with TypeScript
+- Vite for development and building
+- Apollo Client for GraphQL integration
+- Embedded into Go binary via `//go:embed`
+- Development mode: Hot reload on port 5173
+- Production mode: Served from embedded files
 
-**Pipeline Execution**:
-- `ProcessAlertPipeline()` - Pure pipeline processing (no side effects)
-- `HandleAlert()` - Complete alert handling including DB save and Slack posting
-- All pipeline events are emitted through `Notifier` interface for real-time monitoring
-
-#### Command System
-- `pkg/service/command/` - Slack command processing (list, aggregate, ticket)
-- Commands: `l`/`ls`/`list`, `a`/`aggr`/`aggregate`, `t`/`ticket`
-
-#### LLM Integration
-- Uses Vertex AI Gemini for alert analysis and metadata generation
-- `pkg/service/llm/` - LLM service abstractions
-- Implements gollem.LLMClient interface for AI operations
-
-#### Storage
-- Firestore for persistence in serve mode
-- In-memory storage for testing/development
-- `pkg/repository/` - Repository pattern implementations
-
-#### Alert Clustering
-- `pkg/domain/service/clustering/` - DBSCAN clustering algorithm implementation
-- `pkg/usecase/clustering.go` - Clustering use case with caching
-- Uses cosine distance on alert embeddings for similarity
-- Configurable DBSCAN parameters (eps, minSamples)
-- WebUI at `/clusters` for visualizing and managing alert clusters
-- Supports creating tickets from clusters and binding clusters to existing tickets
-
-#### Agent Memory Scoring (Experimental)
-- `pkg/service/memory/scoring.go` - Quality-based memory ranking and pruning
-- `pkg/service/memory/feedback.go` - LLM-based feedback collection
-- `pkg/domain/model/memory/feedback.go` - Feedback model (Relevance/Support/Impact)
-
-**Features**:
-- **Quality Scoring**: Memories rated from -10 (harmful) to +10 (helpful)
-- **Adaptive Search**: Re-ranks memories by similarity (50%) + quality (30%) + recency (20%)
-- **LLM Feedback**: Automatically evaluates memory usefulness after each agent execution
-- **EMA Updates**: Smooth score evolution using exponential moving average (alpha=0.3)
-- **Conservative Pruning**: Strict deletion criteria to preserve memories
-  - Critical (≤-8.0): Immediate deletion
-  - Harmful (≤-5.0) + 90 days unused: Deletion
-  - Moderate (≤-3.0) + 180 days unused: Deletion
-
-**Configuration** (all parameters in `ScoringConfig`):
-- Fully configurable weights, thresholds, and decay rates
-- Default values optimized for gradual learning
-- Easy to remove if experimental feature proves ineffective
-
-**Implementation**:
-- Isolated in 3 files: `scoring.go`, `feedback.go`, `prompt/feedback.md`
-- Minimal changes to existing code (re-ranking in `SearchRelevantAgentMemories`)
-- Backward compatible (existing memories default to score=0.0)
+#### Storage Backends
+- **Firestore**: Production-ready persistent storage
+- **Memory**: In-memory storage for testing and development
+- Repository pattern allows easy switching between backends
+- Interface defined in `pkg/domain/interfaces/`
 
 ### Application Modes
-- `serve` - HTTP server mode with Slack integration, GraphQL API
-- `run` - CLI mode for processing individual alerts
-- `test` - Testing utilities
-- `chat` - Interactive chat mode
-- `tool` - Tool execution utilities
+- `serve` - HTTP server mode with GraphQL API and frontend
 
-### Key Interfaces
-- `interfaces.Repository` - Data persistence abstraction
-- `interfaces.LLMClient` - AI/LLM client abstraction
-- `interfaces.SlackClient` - Slack API client abstraction
-- `interfaces.PolicyClient` - Policy evaluation using OPA
-- `interfaces.StorageClient` - Cloud storage abstraction
-- `interfaces.Notifier` - Event notification abstraction for alert pipeline events
-- `clustering.Service` - Alert clustering service interface
-
-#### Event Notification System
-The alert processing pipeline uses an event-driven notification pattern:
-
-- **Notifier Interface** (`pkg/domain/interfaces/notifier.go`):
-  - Type-safe event handling with dedicated methods for each event type
-  - Methods: `NotifyAlertPolicyResult`, `NotifyEnrichPolicyResult`, `NotifyCommitPolicyResult`, `NotifyEnrichTaskPrompt`, `NotifyEnrichTaskResponse`, `NotifyError`
-  - No generic `Notify(event)` method - each event type has its own method signature
-
-- **Event Types** (`pkg/domain/event/`):
-  - `AlertPolicyResultEvent` - Alert policy evaluation results
-  - `EnrichPolicyResultEvent` - Enrichment policy evaluation results
-  - `CommitPolicyResultEvent` - Commit policy evaluation results
-  - `EnrichTaskPromptEvent` - LLM task prompt being sent
-  - `EnrichTaskResponseEvent` - LLM task response received
-  - `ErrorEvent` - Error occurred during pipeline processing
-
-- **Notifier Implementations**:
-  - `ConsoleNotifier` (`pkg/service/notifier/console.go`) - Outputs events to console with color formatting
-  - `SlackNotifier` (`pkg/service/notifier/slack.go`) - Posts events to Slack thread with formatted messages
-  - Both implementations provide real-time visibility into alert pipeline processing
-
-### Tools Integration
-External security tools integrated via `pkg/tool/`:
-- BigQuery for data analysis
-- VirusTotal, OTX, URLScan for threat intelligence
-- AbuseChip, Shodan, IPDB for IP/domain analysis
+### Future Features (Planned)
+The following features are planned but not yet implemented:
+- IoC data models (IP addresses, domains, file hashes, URLs)
+- IoC ingestion and management APIs
+- Authentication and authorization
+- Threat intelligence integration and enrichment
+- Search and query capabilities
+- Dashboard analytics and visualizations
+- Export and integration features
 
 ## Configuration
 
-The application is configured via CLI flags or environment variables. Key configurations include:
-- Gemini/Vertex AI settings (project ID, location, model)
-- Firestore database settings
-- Slack integration (OAuth token, signing secret, channel)
-- External tool API keys (OTX, URLScan, etc.)
+The application is configured via CLI flags or environment variables:
+
+- `BEEHIVE_ADDR` - HTTP server address (default: `:8080`)
+- `BEEHIVE_GRAPHIQL` - Enable GraphiQL playground (default: `true`)
+- Logger configuration (format, level, output destination)
 
 ## Testing
 
 Test files follow Go conventions (`*_test.go`). The codebase includes:
 - Unit tests for individual components
-- Integration tests with mock dependencies
-- Test data in `testdata/` directories
-- Mock generation using `moq` tool
+- Integration tests with repository implementations
+- Repository tests use both memory and firestore backends for verification
 
 ## Restrictions and Rules
 
