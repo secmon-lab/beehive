@@ -31,7 +31,7 @@ tasks:
     desc: "Build frontend application"
     dir: frontend
     cmds:
-      - npm install
+      - npm ci
       - npm run build
 
   run:
