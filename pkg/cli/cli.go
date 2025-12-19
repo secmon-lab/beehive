@@ -8,14 +8,15 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func Run(ctx context.Context, args []string) error {
+func Run(ctx context.Context, args []string, version string) error {
 	var loggerCfg config.Logger
 	var closer func()
 
 	app := &cli.Command{
-		Name:  "beehive",
-		Usage: "Beehive IoC (Indicator of Compromise) management system",
-		Flags: loggerCfg.Flags(),
+		Name:    "beehive",
+		Usage:   "Beehive IoC (Indicator of Compromise) management system",
+		Version: version,
+		Flags:   loggerCfg.Flags(),
 		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 			f, err := loggerCfg.Configure()
 			if err != nil {

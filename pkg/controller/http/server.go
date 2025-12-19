@@ -19,10 +19,10 @@ import (
 )
 
 type Server struct {
-	router          *chi.Mux
-	repo            interfaces.Repository
-	uc              *usecase.UseCases
-	enableGraphiQL  bool
+	router         *chi.Mux
+	repo           interfaces.Repository
+	uc             *usecase.UseCases
+	enableGraphiQL bool
 }
 
 type Options func(*Server)

@@ -2,8 +2,6 @@ module github.com/secmon-lab/beehive
 
 go 1.25.5
 
-toolchain go1.25.5
-
 require (
 	cloud.google.com/go/firestore v1.18.0
 	github.com/99designs/gqlgen v0.17.83

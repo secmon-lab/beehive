@@ -7,8 +7,10 @@ import (
 	"github.com/secmon-lab/beehive/pkg/cli"
 )
 
+var version = "dev"
+
 func main() {
-	if err := cli.Run(context.Background(), os.Args); err != nil {
+	if err := cli.Run(context.Background(), os.Args, version); err != nil {
 		os.Exit(1)
 	}
 }
