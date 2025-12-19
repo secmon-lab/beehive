@@ -41,7 +41,7 @@ COPY --from=build-frontend /app/frontend/dist /app/frontend/dist
 # Build the application with cache mounts
 RUN --mount=type=cache,target=/root/.cache/go-mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -ldflags="-w -s -X main.version=${BUILD_VERSION}" -o beehive
+    go build -mod=readonly -ldflags="-w -s -X main.version=${BUILD_VERSION}" -o beehive
 
 # Final stage
 FROM gcr.io/distroless/base:nonroot
