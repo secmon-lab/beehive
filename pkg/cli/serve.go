@@ -4,7 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
+	"github.com/m-mizutani/goerr/v2"
 	httpctrl "github.com/secmon-lab/beehive/pkg/controller/http"
 	"github.com/secmon-lab/beehive/pkg/repository/memory"
 	"github.com/secmon-lab/beehive/pkg/usecase"
@@ -44,14 +49,44 @@ func cmdServe() *cli.Command {
 			uc := usecase.New(repo)
 
 			// Create HTTP server
-			server := httpctrl.New(repo, uc, httpctrl.WithGraphiQL(enableGraphiQL))
-
-			logging.Default().Info("Starting HTTP server", "addr", addr, "graphiql", enableGraphiQL)
-			if err := http.ListenAndServe(addr, server); err != nil {
-				return fmt.Errorf("failed to start server: %w", err)
+			handler := httpctrl.New(repo, uc, httpctrl.WithGraphiQL(enableGraphiQL))
+			server := &http.Server{
+				Addr:    addr,
+				Handler: handler,
 			}
 
-			return nil
+			// Setup signal handling for graceful shutdown
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+			// Start server in goroutine
+			errCh := make(chan error, 1)
+			go func() {
+				logging.Default().Info("Starting HTTP server", "addr", addr, "graphiql", enableGraphiQL)
+				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					errCh <- goerr.Wrap(err, "failed to start server")
+				}
+			}()
+
+			// Wait for shutdown signal or server error
+			select {
+			case err := <-errCh:
+				return err
+			case sig := <-sigCh:
+				logging.Default().Info("Received shutdown signal", "signal", sig)
+
+				// Create shutdown context with timeout
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				// Attempt graceful shutdown
+				if err := server.Shutdown(shutdownCtx); err != nil {
+					return goerr.Wrap(err, "failed to shutdown server gracefully")
+				}
+
+				logging.Default().Info("Server shutdown completed")
+				return nil
+			}
 		},
 	}
 }
