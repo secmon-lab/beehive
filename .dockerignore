@@ -18,6 +18,8 @@ coverage.*
 .claude
 .cckiro
 
-# Documentation
-*.md
-LICENSE
+# Documentation (exclude development docs, include essential files)
+CLAUDE.md
+CONTRIBUTING.md
+CHANGELOG.md
+# Keep README.md and LICENSE in the image
