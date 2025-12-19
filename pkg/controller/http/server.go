@@ -65,11 +65,15 @@ func New(repo interfaces.Repository, uc *usecase.UseCases, opts ...Options) *Ser
 
 	// Static file serving for SPA (catch-all, must be last)
 	staticFS, err := fs.Sub(frontend.StaticFiles, "dist")
-	if err == nil {
+	if err != nil {
+		logging.Default().Error("failed to create sub FS for frontend static files", "error", err)
+	} else {
 		// Check if index.html exists
 		if _, err := staticFS.Open("index.html"); err == nil {
 			// Serve static files and handle SPA routing
 			r.Get("/*", spaHandler(staticFS))
+		} else {
+			logging.Default().Warn("index.html not found in frontend dist", "error", err)
 		}
 	}
 
