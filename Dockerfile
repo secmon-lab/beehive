@@ -30,7 +30,7 @@ COPY go.mod go.sum ./
 # Download dependencies with cache mount
 RUN --mount=type=cache,target=/root/.cache/go-mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go mod download
+    go mod download && go mod verify
 
 # Copy source code
 COPY . /app
