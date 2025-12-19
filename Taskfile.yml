@@ -1,0 +1,48 @@
+# https://taskfile.dev
+
+version: "3"
+
+tasks:
+  default:
+    cmds:
+      - task: graphql
+
+  graphql:
+    desc: "Generate GraphQL code"
+    cmds:
+      - go tool gqlgen generate
+
+  mock:
+    aliases:
+      - m
+    desc: "Generate mock files"
+    cmds:
+      - echo "Mock generation will be added when interfaces are defined"
+
+  build:
+    desc: "Build the application"
+    deps:
+      - build:frontend
+      - graphql
+    cmds:
+      - go build -o beehive main.go
+
+  build:frontend:
+    desc: "Build frontend application"
+    dir: frontend
+    cmds:
+      - npm install
+      - npm run build
+
+  run:
+    desc: "Run the application"
+    deps:
+      - build
+    cmds:
+      - ./beehive serve
+
+  dev:frontend:
+    desc: "Run frontend development server"
+    dir: frontend
+    cmds:
+      - npm run dev

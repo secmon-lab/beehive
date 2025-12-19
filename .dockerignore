@@ -1,0 +1,29 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+beehive
+frontend/dist
+frontend/node_modules
+
+# Generated files
+pkg/controller/graphql/generated.go
+pkg/domain/model/graphql/models_gen.go
+*.resolvers.go
+
+# Development
+tmp
+.env
+*.test
+coverage.*
+
+# IDE
+.vscode
+.idea
+.claude
+.cckiro
+
+# Documentation
+*.md
+LICENSE
