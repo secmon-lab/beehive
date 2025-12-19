@@ -1,6 +1,8 @@
 module github.com/secmon-lab/beehive
 
-go 1.24.0
+go 1.25.5
+
+toolchain go1.25.5
 
 require (
 	cloud.google.com/go/firestore v1.18.0
@@ -114,7 +116,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.37.0 // indirect
 	go.opentelemetry.io/otel/trace v1.37.0 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.3 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.33.0 // indirect
