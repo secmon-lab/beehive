@@ -41,6 +41,7 @@ beehive/
 
 - Go 1.24+
 - Node.js 18+
+- pnpm (for frontend package management)
 - Task (optional, for task automation)
 
 ### Development
@@ -48,7 +49,7 @@ beehive/
 1. **Install dependencies**:
 ```bash
 go mod download
-cd frontend && npm install
+cd frontend && pnpm install
 ```
 
 2. **Generate GraphQL code**:
@@ -60,7 +61,7 @@ task graphql
 
 3. **Build frontend**:
 ```bash
-cd frontend && npm run build
+cd frontend && pnpm run build
 # or with task
 task build:frontend
 ```
@@ -85,7 +86,7 @@ For hot-reload during frontend development:
 go run main.go serve
 
 # Terminal 2: Run frontend dev server
-cd frontend && npm run dev
+cd frontend && pnpm run dev
 ```
 
 Then access frontend at http://localhost:5173 (Vite dev server).
@@ -100,7 +101,7 @@ task build
 
 # Or manually
 go tool gqlgen generate
-cd frontend && npm run build && cd ..
+cd frontend && pnpm run build && cd ..
 go build -o beehive main.go
 ```
 
@@ -136,9 +137,9 @@ Without Task:
 
 ```bash
 go tool gqlgen generate                    # Generate GraphQL code
-cd frontend && npm run build              # Build frontend
-go build -o beehive main.go               # Build Go binary
-./beehive serve                           # Run server
+cd frontend && pnpm run build              # Build frontend
+go build -o beehive main.go                # Build Go binary
+./beehive serve                            # Run server
 ```
 
 ## Project Status

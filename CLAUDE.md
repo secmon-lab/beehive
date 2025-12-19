@@ -72,6 +72,7 @@ The application follows Domain-Driven Design (DDD) with clean architecture:
 #### Frontend
 - React with TypeScript
 - Vite for development and building
+- pnpm for package management (faster and more efficient than npm)
 - Apollo Client for GraphQL integration
 - Embedded into Go binary via `//go:embed`
 - Development mode: Hot reload on port 5173

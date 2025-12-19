@@ -2,13 +2,16 @@
 FROM node:18-alpine AS build-frontend
 WORKDIR /app/frontend
 
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 # Copy package files first for better caching
-COPY frontend/package*.json ./
-RUN npm ci
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Copy source files and build
 COPY frontend/ ./
-RUN npm run build
+RUN pnpm run build
 
 # Go build stage
 FROM golang:1.25.5-alpine AS build-go

@@ -31,8 +31,8 @@ tasks:
     desc: "Build frontend application"
     dir: frontend
     cmds:
-      - npm ci
-      - npm run build
+      - pnpm install --frozen-lockfile
+      - pnpm run build
 
   run:
     desc: "Run the application"
@@ -45,4 +45,4 @@ tasks:
     desc: "Run frontend development server"
     dir: frontend
     cmds:
-      - npm run dev
+      - pnpm run dev
