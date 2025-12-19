@@ -50,8 +50,9 @@ func cmdServe() *cli.Command {
 			// Create HTTP server
 			handler := httpctrl.New(repo, uc, httpctrl.WithGraphiQL(enableGraphiQL))
 			server := &http.Server{
-				Addr:    addr,
-				Handler: handler,
+				Addr:              addr,
+				Handler:           handler,
+				ReadHeaderTimeout: 30 * time.Second,
 			}
 
 			// Setup signal handling for graceful shutdown
