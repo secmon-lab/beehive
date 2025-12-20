@@ -12,16 +12,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/secmon-lab/beehive/frontend"
 	"github.com/secmon-lab/beehive/pkg/controller/graphql"
-	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
-	"github.com/secmon-lab/beehive/pkg/usecase"
 	"github.com/secmon-lab/beehive/pkg/utils/logging"
 	"github.com/secmon-lab/beehive/pkg/utils/safe"
 )
 
 type Server struct {
 	router         *chi.Mux
-	repo           interfaces.Repository
-	uc             *usecase.UseCases
+	gqlResolver    *graphql.Resolver
 	enableGraphiQL bool
 }
 
@@ -33,13 +30,12 @@ func WithGraphiQL(enabled bool) Options {
 	}
 }
 
-func New(repo interfaces.Repository, uc *usecase.UseCases, opts ...Options) *Server {
+func New(gqlResolver *graphql.Resolver, opts ...Options) *Server {
 	r := chi.NewRouter()
 
 	s := &Server{
 		router:         r,
-		repo:           repo,
-		uc:             uc,
+		gqlResolver:    gqlResolver,
 		enableGraphiQL: false,
 	}
 	for _, opt := range opts {
@@ -52,7 +48,7 @@ func New(repo interfaces.Repository, uc *usecase.UseCases, opts ...Options) *Ser
 	r.Use(middleware.Recoverer)
 
 	// GraphQL endpoint (must be registered before catch-all route)
-	gqlHandler := graphqlHandler(repo, uc)
+	gqlHandler := graphqlHandler(gqlResolver)
 	r.Route("/graphql", func(r chi.Router) {
 		r.Post("/", gqlHandler.ServeHTTP)
 		r.Get("/", gqlHandler.ServeHTTP) // Support GET for introspection
@@ -107,8 +103,7 @@ func accessLogger(next http.Handler) http.Handler {
 }
 
 // GraphQL handler
-func graphqlHandler(repo interfaces.Repository, uc *usecase.UseCases) http.Handler {
-	resolver := graphql.NewResolver(repo, uc)
+func graphqlHandler(resolver *graphql.Resolver) http.Handler {
 	srv := handler.NewDefaultServer(
 		graphql.NewExecutableSchema(graphql.Config{Resolvers: resolver}),
 	)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/m-mizutani/goerr/v2"
+	"github.com/secmon-lab/beehive/pkg/controller/graphql"
 	httpctrl "github.com/secmon-lab/beehive/pkg/controller/http"
 	"github.com/secmon-lab/beehive/pkg/repository/memory"
 	"github.com/secmon-lab/beehive/pkg/usecase"
@@ -47,8 +48,11 @@ func cmdServe() *cli.Command {
 			// Initialize use cases
 			uc := usecase.New(repo)
 
+			// Initialize GraphQL resolver
+			gqlResolver := graphql.NewResolver(repo, uc)
+
 			// Create HTTP server
-			handler := httpctrl.New(repo, uc, httpctrl.WithGraphiQL(enableGraphiQL))
+			handler := httpctrl.New(gqlResolver, httpctrl.WithGraphiQL(enableGraphiQL))
 			server := &http.Server{
 				Addr:              addr,
 				Handler:           handler,
