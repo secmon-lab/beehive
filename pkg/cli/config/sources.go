@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 	"github.com/m-mizutani/goerr/v2"
@@ -35,7 +36,9 @@ type FeedConfig struct {
 
 // LoadSources loads source configuration from a TOML file
 func LoadSources(path string) (*Sources, error) {
-	data, err := os.ReadFile(path)
+	// Clean the path to prevent directory traversal attacks
+	cleanPath := filepath.Clean(path)
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to read config file", goerr.V("path", path))
 	}
