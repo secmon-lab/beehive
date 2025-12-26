@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><feed
+	xmlns="http://www.w3.org/2005/Atom"
+	xmlns:thr="http://purl.org/syndication/thread/1.0"
+	xml:lang="en-US"
+	>
+	<title type="text">Example Security Insights</title>
+	<subtitle type="text"></subtitle>
+
+	<updated>2025-12-22T17:14:47Z</updated>
+
+	<link rel="alternate" type="text/html" href="https://example.com/" />
+	<id>https://example.com/feed/atom/</id>
+	<link rel="self" type="application/atom+xml" href="https://example.com/feed/atom/" />
+
+
+<icon>https://example.com/favicon.png</icon>
+	<entry>
+		<author>
+			<name>Security Analyst</name>
+					</author>
+
+		<title type="html"><![CDATA[Denmark Accuses Russia of Conducting Two Cyberattacks]]></title>
+		<link rel="alternate" type="text/html" href="https://www.schneier.com/blog/archives/2025/12/denmark-accuses-russia-of-conducting-two-cyberattacks.html" />
+
+		<id>https://www.schneier.com/?p=71373</id>
+		<updated>2025-12-22T17:14:47Z</updated>
+		<published>2025-12-23T12:02:32Z</published>
+		<category scheme="https://example.com/" term="Uncategorized" /><category scheme="https://example.com/" term="cyberattack" /><category scheme="https://example.com/" term="denial of service" />
+		<summary type="html"><![CDATA[<p>Recent security incident analysis reveals coordinated infrastructure attacks.</p>
+<blockquote><p>The Danish Defence Intelligence Service (DDIS) announced on Thursday that Moscow was behind a cyber-attack on a Danish water utility in 2024 and a series of distributed denial-of-service (DDoS) attacks on Danish websites in the lead-up to the municipal and regional council elections in November.</p>
+<p>The first, it said, was carried out by the pro-Russian group known as Z-Pentest and the second by NoName057(16), which has links to the Russian state.</p></blockquote>
+]]></summary>
+
+					<content type="html" xml:base="https://www.schneier.com/blog/archives/2025/12/denmark-accuses-russia-of-conducting-two-cyberattacks.html"><![CDATA[<p>Analysis of recent infrastructure targeting incidents.</p>
+<blockquote><p>The Danish Defence Intelligence Service (DDIS) announced on Thursday that Moscow was behind a cyber-attack on a Danish water utility in 2024 and a series of distributed denial-of-service (DDoS) attacks on Danish websites in the lead-up to the municipal and regional council elections in November.</p>
+<p>The first, it said, was carried out by the pro-Russian group known as Z-Pentest and the second by NoName057(16), which has links to the Russian state.</p></blockquote>
+]]></content>
+
+			</entry>
+		<entry>
+		<author>
+			<name>Security Analyst</name>
+					</author>
+
+		<title type="html"><![CDATA[Microsoft Is Finally Killing RC4]]></title>
+		<link rel="alternate" type="text/html" href="https://www.schneier.com/blog/archives/2025/12/microsoft-is-finally-killing-rc4.html" />
+
+		<id>https://www.schneier.com/?p=71371</id>
+		<updated>2025-12-22T17:05:09Z</updated>
+		<published>2025-12-22T17:05:09Z</published>
+		<category scheme="https://example.com/" term="Uncategorized" /><category scheme="https://example.com/" term="algorithms" /><category scheme="https://example.com/" term="encryption" />
+		<summary type="html"><![CDATA[<p>After twenty-six years, legacy encryption algorithm finally being deprecated in enterprise systems.</p>
+<blockquote><p>One of the most visible holdouts in supporting RC4 has been Microsoft. Eventually, Microsoft upgraded Active Directory to support the much more secure AES encryption standard. But by default, Windows servers have continued to respond to RC4-based authentication requests and return an RC4-based response. The RC4 fallback has been a favorite weakness hackers have exploited to compromise enterprise networks.</p></blockquote>]]></summary>
+
+					<content type="html" xml:base="https://www.schneier.com/blog/archives/2025/12/microsoft-is-finally-killing-rc4.html"><![CDATA[<p>After twenty-six years, Microsoft is finally upgrading the last remaining instance of the encryption algorithm RC4 in Windows.</p>
+<blockquote><p>One of the most visible holdouts in supporting RC4 has been Microsoft. Eventually, Microsoft upgraded Active Directory to support the much more secure AES encryption standard. But by default, Windows servers have continued to respond to RC4-based authentication requests and return an RC4-based response. The RC4 fallback has been a favorite weakness hackers have exploited to compromise enterprise networks.</p></blockquote>
+]]></content>
+
+			</entry>
+		<entry>
+		<author>
+			<name>Security Analyst</name>
+					</author>
+
+		<title type="html"><![CDATA[Friday Squid Blogging: Petting a Squid]]></title>
+		<link rel="alternate" type="text/html" href="https://www.schneier.com/blog/archives/2025/12/friday-squid-blogging-petting-a-squid.html" />
+
+		<id>https://www.schneier.com/?p=71304</id>
+		<updated>2025-12-10T17:47:40Z</updated>
+		<published>2025-12-19T22:06:59Z</published>
+		<category scheme="https://example.com/" term="Uncategorized" /><category scheme="https://example.com/" term="squid" />
+		<summary type="html"><![CDATA[<p>Weekly discussion thread for security topics.</p>
+<p>As usual, you can also use this squid post to talk about the security stories in the news that I haven't covered.</p>
+]]></summary>
+
+					<content type="html" xml:base="https://www.schneier.com/blog/archives/2025/12/friday-squid-blogging-petting-a-squid.html"><![CDATA[<p>Example weekly discussion post.</p>
+<p>As usual, you can also use this squid post to talk about the security stories in the news that I haven't covered.</p>
+]]></content>
+
+			</entry>
+	</feed>

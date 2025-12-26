@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+	<title type="text">Example Security Blog</title>
+	<subtitle type="text">Security research and updates</subtitle>
+	<updated>2024-01-15T12:00:00Z</updated>
+	<link rel="alternate" type="text/html" href="https://example.com/security/" />
+	<id>https://example.com/security/feed/atom/</id>
+	<link rel="self" type="application/atom+xml" href="https://example.com/security/feed/atom/" />
+
+	<entry>
+		<author>
+			<name>Security Team</name>
+		</author>
+		<title type="html"><![CDATA[New Vulnerability in Example Protocol]]></title>
+		<link rel="alternate" type="text/html" href="https://example.com/security/2024/01/new-vulnerability.html" />
+		<id>https://example.com/?p=1001</id>
+		<updated>2024-01-15T12:00:00Z</updated>
+		<published>2024-01-15T12:00:00Z</published>
+		<category scheme="https://example.com/" term="vulnerability" />
+		<summary type="html"><![CDATA[<p>Researchers discovered a critical vulnerability in the Example Protocol implementation.</p>]]></summary>
+		<content type="html" xml:base="https://example.com/security/2024/01/new-vulnerability.html"><![CDATA[<p>Security researchers have identified a critical vulnerability affecting Example Protocol version 1.2.3. The vulnerability allows remote attackers to execute arbitrary code through specially crafted packets.</p>]]></content>
+	</entry>
+
+	<entry>
+		<author>
+			<name>Security Team</name>
+		</author>
+		<title type="html"><![CDATA[Security Update for Example Framework]]></title>
+		<link rel="alternate" type="text/html" href="https://example.com/security/2024/01/security-update.html" />
+		<id>https://example.com/?p=1002</id>
+		<updated>2024-01-14T10:30:00Z</updated>
+		<published>2024-01-14T10:30:00Z</published>
+		<category scheme="https://example.com/" term="update" />
+		<summary type="html"><![CDATA[<p>Important security patches released for Example Framework.</p>]]></summary>
+		<content type="html" xml:base="https://example.com/security/2024/01/security-update.html"><![CDATA[<p>The Example Framework team has released security patches addressing multiple vulnerabilities. Users are strongly encouraged to upgrade to version 2.0.1 immediately.</p>]]></content>
+	</entry>
+
+	<entry>
+		<author>
+			<name>Security Team</name>
+		</author>
+		<title type="html"><![CDATA[Threat Analysis Report January 2024]]></title>
+		<link rel="alternate" type="text/html" href="https://example.com/security/2024/01/threat-report.html" />
+		<id>https://example.com/?p=1003</id>
+		<updated>2024-01-13T09:00:00Z</updated>
+		<published>2024-01-13T09:00:00Z</published>
+		<category scheme="https://example.com/" term="analysis" />
+		<summary type="html"><![CDATA[<p>Monthly threat landscape analysis and trends.</p>]]></summary>
+		<content type="html" xml:base="https://example.com/security/2024/01/threat-report.html"><![CDATA[<p>This report provides an overview of the threat landscape observed during January 2024, including emerging attack patterns and recommended defensive measures.</p>]]></content>
+	</entry>
+</feed>

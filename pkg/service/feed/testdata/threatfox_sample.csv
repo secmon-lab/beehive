@@ -1,0 +1,20 @@
+################################################################
+# ThreatFox IOCs: recent additions - CSV format                #
+# Last updated: 2025-12-24 07:24:23 UTC                        #
+#                                                              #
+# Terms Of Use: https://threatfox.abuse.ch/faq/#tos            #
+# For questions please contact threatfox [at] abuse.ch         #
+################################################################
+#
+# "first_seen_utc","ioc_id","ioc_value","ioc_type","threat_type","fk_malware","malware_alias","malware_printable","last_seen_utc","confidence_level","reference","tags","anonymous","reporter"
+"2025-12-24 07:24:23", "1685590", "45.32.211.159:51515", "ip:port", "botnet_cc", "elf.mirai", "Katana", "Mirai", "", "80", "None", "mirai", "0", "seckle"
+"2025-12-24 07:24:23", "1685599", "47.96.75.57:8081", "ip:port", "botnet_cc", "win.cobalt_strike", "Agentemis,BEACON,CobaltStrike,cobeacon", "Cobalt Strike", "2025-12-24 00:01:11", "100", "https://search.censys.io/hosts/47.96.75.57", "AS37963,C2,censys", "0", "dyingbreeds_"
+"2025-12-24 07:24:22", "1685600", "47.76.53.145:80", "ip:port", "botnet_cc", "win.cobalt_strike", "Agentemis,BEACON,CobaltStrike,cobeacon", "Cobalt Strike", "2025-12-24 00:01:07", "100", "https://search.censys.io/hosts/47.76.53.145", "AS45102,C2,censys", "0", "dyingbreeds_"
+"2025-12-24 07:24:22", "1685601", "https://google-drive.co/", "url", "payload_delivery", "unknown", "None", "Unknown malware", "", "90", "https://clickfix.carsonww.com/domains/google-drive.co", "ClickFix", "0", "CarsonWilliams"
+"2025-12-24 07:24:20", "1685602", "216.40.86.158:443", "ip:port", "botnet_cc", "win.sliver", "None", "Sliver", "2025-12-24 00:01:34", "90", "https://search.censys.io/hosts/216.40.86.158", "AS1054,C2,censys,ZONT-LLC", "0", "dyingbreeds_"
+"2025-12-24 07:24:20", "1685603", "38.12.24.231:31337", "ip:port", "botnet_cc", "win.sliver", "None", "Sliver", "2025-12-24 00:01:35", "90", "https://search.censys.io/hosts/38.12.24.231", "AROSS-AS,AS400619,C2,censys", "0", "dyingbreeds_"
+"2025-12-24 07:24:19", "1685604", "34.209.232.97:443", "ip:port", "botnet_cc", "win.havoc", "Havokiz", "Havoc", "2025-12-24 00:01:56", "100", "https://search.censys.io/hosts/34.209.232.97", "AMAZON-02,AS16509,C2,censys", "0", "dyingbreeds_"
+"2025-12-24 07:24:19", "1685605", "93.188.161.183:8443", "ip:port", "botnet_cc", "unknown", "None", "Unknown malware", "", "100", "https://search.censys.io/hosts/93.188.161.183", "AS-HOSTINGER,AS47583,censys,GoPhish,Phishing", "0", "dyingbreeds_"
+"2025-12-24 07:24:19", "1685606", "185.189.58.205:3334", "ip:port", "botnet_cc", "unknown", "None", "Unknown malware", "", "100", "https://search.censys.io/hosts/185.189.58.205", "AS49683,censys,GoPhish,MASSIVEGRID,Phishing", "0", "dyingbreeds_"
+"2025-12-24 07:24:18", "1685607", "3.239.159.127:8000", "ip:port", "botnet_cc", "unknown", "None", "Unknown malware", "", "100", "https://search.censys.io/hosts/3.239.159.127", "AMAZON-AES,AS14618,censys,GoPhish,Phishing", "0", "dyingbreeds_"
+"2025-12-24 07:24:17", "1685608", "223.76.218.105:9205", "ip:port", "botnet_cc", "unknown", "None", "Unknown malware", "", "100", "https://search.censys.io/hosts/223.76.218.105", "AS9808,censys,GoPhish,Phishing", "0", "dyingbreeds_"

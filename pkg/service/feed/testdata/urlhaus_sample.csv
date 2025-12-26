@@ -1,0 +1,20 @@
+################################################################
+# abuse.ch URLhaus Database Dump (CSV - recent URLs only)      #
+# Last updated: 2025-12-24 07:20:09 (UTC)                      #
+#                                                              #
+# Terms Of Use: https://urlhaus.abuse.ch/api/                  #
+# For questions please contact urlhaus [at] abuse.ch           #
+################################################################
+#
+# id,dateadded,url,url_status,last_online,threat,tags,urlhaus_link,reporter
+"3741935","2025-12-24 07:20:09","https://sivqen.a8riculmarb1e.ru/0dh149h0","offline","","malware_download","ClearFake","https://urlhaus.abuse.ch/url/3741935/","anonymous"
+"3741934","2025-12-24 07:18:09","https://sivqen.a8riculmarb1e.ru/wf7eqkdv","offline","","malware_download","ClearFake","https://urlhaus.abuse.ch/url/3741934/","anonymous"
+"3741933","2025-12-24 07:17:12","http://182.126.117.23:55214/bin.sh","online","2025-12-24 07:17:12","malware_download","32-bit,elf,mips,Mozi","https://urlhaus.abuse.ch/url/3741933/","geenensp"
+"3741932","2025-12-24 07:14:17","http://192.227.152.84/sdxkzX_UXA229x.mpsl","online","2025-12-24 07:14:17","malware_download","32-bit,elf,mips,mirai","https://urlhaus.abuse.ch/url/3741932/","geenensp"
+"3741931","2025-12-24 07:11:06","http://221.15.10.105:34059/i","online","2025-12-24 07:11:06","malware_download","32-bit,elf,mips,Mozi","https://urlhaus.abuse.ch/url/3741931/","geenensp"
+"3741930","2025-12-24 07:10:09","http://115.55.220.195:56813/i","online","2025-12-24 07:10:09","malware_download","32-bit,elf,mips,Mozi","https://urlhaus.abuse.ch/url/3741930/","geenensp"
+"3741929","2025-12-24 07:09:07","https://tam8re.a8riculmarb1e.ru/ou451t86","offline","","malware_download","ClearFake","https://urlhaus.abuse.ch/url/3741929/","anonymous"
+"3741928","2025-12-24 07:06:16","http://116.139.33.116:40407/i","online","2025-12-24 07:06:16","malware_download","32-bit,elf,mips,Mozi","https://urlhaus.abuse.ch/url/3741928/","geenensp"
+"3741927","2025-12-24 07:03:14","http://182.114.33.224:35747/i","online","2025-12-24 07:03:14","malware_download","32-bit,elf,mips,Mozi","https://urlhaus.abuse.ch/url/3741927/","geenensp"
+"3741926","2025-12-24 07:02:08","http://61.53.91.90:42036/bin.sh","online","2025-12-24 07:02:08","malware_download","32-bit,elf,mips,Mozi","https://urlhaus.abuse.ch/url/3741926/","geenensp"
+"3741925","2025-12-24 07:01:14","http://222.140.199.253:32946/bin.sh","online","2025-12-24 07:01:14","malware_download","32-bit,elf,mips,Mozi","https://urlhaus.abuse.ch/url/3741925/","geenensp"
