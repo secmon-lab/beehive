@@ -164,6 +164,11 @@ func (e *Extractor) GenerateEmbedding(ctx context.Context, text string) ([]float
 func ConvertToIoC(sourceID, sourceType, sourceURL string, extracted *ExtractedIoC, contextParams map[string]string) (*model.IoC, error) {
 	// Map string type to IoCType
 	iocType := mapStringToIoCType(extracted.Type)
+	if iocType == "" {
+		return nil, goerr.Wrap(model.ErrInvalidIoCType, "unknown IoC type from LLM",
+			goerr.V("type", extracted.Type),
+			goerr.V("value", extracted.Value))
+	}
 
 	// Normalize the value
 	normalizedValue := model.NormalizeValue(iocType, extracted.Value)
@@ -190,6 +195,7 @@ func ConvertToIoC(sourceID, sourceType, sourceURL string, extracted *ExtractedIo
 }
 
 // mapStringToIoCType maps a string type to IoCType
+// Returns an empty IoCType if the type string is unknown
 func mapStringToIoCType(typeStr string) model.IoCType {
 	typeStr = strings.ToLower(strings.TrimSpace(typeStr))
 
@@ -211,8 +217,9 @@ func mapStringToIoCType(typeStr string) model.IoCType {
 	case "sha256":
 		return model.IoCTypeSHA256
 	default:
-		// Try to auto-detect
-		return model.DetectIoCType(typeStr)
+		// Unknown type - return empty string
+		// This should not happen if LLM follows the schema, but handle gracefully
+		return ""
 	}
 }
 
