@@ -1,15 +1,7 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import styles from './Sidebar.module.css'
 
 function Sidebar() {
-  const location = useLocation()
-
-  const isActive = (path: string) => {
-    if (path === '/' && location.pathname === '/') return true
-    if (path !== '/' && location.pathname.startsWith(path)) return true
-    return false
-  }
-
   return (
     <aside className={styles.sidebar}>
       <Link to="/" className={styles.logoLink}>
@@ -22,22 +14,26 @@ function Sidebar() {
       <nav className={styles.nav}>
         <ul className={styles.navList}>
           <li className={styles.navItem}>
-            <Link
+            <NavLink
               to="/ioc"
-              className={`${styles.navLink} ${isActive('/ioc') ? styles.active : ''}`}
+              className={({ isActive }) =>
+                `${styles.navLink} ${isActive ? styles.active : ''}`
+              }
             >
               <span className={styles.icon}>🎯</span>
               <span>IoCs</span>
-            </Link>
+            </NavLink>
           </li>
           <li className={styles.navItem}>
-            <Link
+            <NavLink
               to="/sources"
-              className={`${styles.navLink} ${isActive('/sources') ? styles.active : ''}`}
+              className={({ isActive }) =>
+                `${styles.navLink} ${isActive ? styles.active : ''}`
+              }
             >
               <span className={styles.icon}>📡</span>
               <span>Sources</span>
-            </Link>
+            </NavLink>
           </li>
         </ul>
       </nav>
