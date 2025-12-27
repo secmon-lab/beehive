@@ -2,7 +2,6 @@ package rss
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -222,36 +221,4 @@ func ExtractTextFromHTML(htmlContent string) (string, error) {
 	text = strings.Join(strings.Fields(text), " ")
 
 	return text, nil
-}
-
-// FetchWithContext fetches content from a URL with context
-func FetchWithContext(ctx context.Context, url string) ([]byte, error) {
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to create request", goerr.V("url", url))
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, goerr.Wrap(errFetchFailed, "HTTP request failed",
-			goerr.V("url", url))
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, goerr.Wrap(errFetchFailed, "non-200 status code",
-			goerr.V("url", url),
-			goerr.V("status_code", resp.StatusCode))
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to read response body", goerr.V("url", url))
-	}
-
-	return data, nil
 }

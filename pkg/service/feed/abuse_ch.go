@@ -10,10 +10,10 @@ import (
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
+	"github.com/secmon-lab/beehive/pkg/utils/httpclient"
 )
 
 var (
-	errFetchFailed = goerr.New("failed to fetch feed")
 	errParseFailed = goerr.New("failed to parse feed")
 )
 
@@ -30,7 +30,7 @@ type FeedEntry struct {
 
 // Service provides threat intelligence feed fetching and parsing
 type Service struct {
-	client *http.Client
+	client httpclient.HTTPClient
 }
 
 // New creates a new feed service
@@ -45,7 +45,7 @@ func New() *Service {
 // FetchAbuseCHURLhaus fetches and parses URLhaus feed from abuse.ch
 // Format: id,dateadded,url,url_status,last_online,threat,tags,urlhaus_link,reporter
 func (s *Service) FetchAbuseCHURLhaus(ctx context.Context, feedURL string) ([]*FeedEntry, error) {
-	data, err := s.fetchWithContext(ctx, feedURL)
+	data, err := httpclient.FetchWithClient(ctx, s.client, feedURL)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to fetch URLhaus feed")
 	}
@@ -99,7 +99,7 @@ func (s *Service) FetchAbuseCHURLhaus(ctx context.Context, feedURL string) ([]*F
 // FetchAbuseCHThreatFox fetches and parses ThreatFox feed from abuse.ch
 // Format: first_seen_utc,ioc_id,ioc_value,ioc_type,threat_type,fk_malware,malware_alias,malware_printable,last_seen_utc,confidence_level,reference,tags,anonymous,reporter
 func (s *Service) FetchAbuseCHThreatFox(ctx context.Context, feedURL string) ([]*FeedEntry, error) {
-	data, err := s.fetchWithContext(ctx, feedURL)
+	data, err := httpclient.FetchWithClient(ctx, s.client, feedURL)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to fetch ThreatFox feed")
 	}
@@ -171,35 +171,6 @@ func (s *Service) FetchFeed(ctx context.Context, feedURL, schema string) ([]*Fee
 	default:
 		return nil, goerr.New("unsupported feed schema", goerr.V("schema", schema))
 	}
-}
-
-// fetchWithContext fetches data from URL with context
-func (s *Service) fetchWithContext(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to create request", goerr.V("url", url))
-	}
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, goerr.Wrap(errFetchFailed, "HTTP request failed",
-			goerr.V("url", url))
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, goerr.Wrap(errFetchFailed, "non-200 status code",
-			goerr.V("url", url),
-			goerr.V("status_code", resp.StatusCode))
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to read response body",
-			goerr.V("url", url))
-	}
-
-	return data, nil
 }
 
 // parseDate parses date string in various formats

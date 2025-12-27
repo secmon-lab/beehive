@@ -38,12 +38,12 @@ type FeedConfig struct {
 
 // SourceState represents the state of a source
 type SourceState struct {
-	SourceID      string    `firestore:"source_id"`
-	LastFetchedAt time.Time `firestore:"last_fetched_at"`
-	LastItemID    string    `firestore:"last_item_id"`   // For RSS: last GUID, for feeds: last entry ID
-	LastItemDate  time.Time `firestore:"last_item_date"` // Last item's published date
-	ItemCount     int64     `firestore:"item_count"`     // Total items processed
-	ErrorCount    int64     `firestore:"error_count"`    // Error count
-	LastError     string    `firestore:"last_error"`     // Last error message
-	UpdatedAt     time.Time `firestore:"updated_at"`
+	SourceID      string
+	LastFetchedAt time.Time
+	LastItemID    string    // For RSS: last GUID, for feeds: last entry ID
+	LastItemDate  time.Time // Last item's published date
+	ItemCount     int64     // Total items processed
+	ErrorCount    int64     // Error count
+	LastError     string    // Last error message
+	UpdatedAt     time.Time
 }

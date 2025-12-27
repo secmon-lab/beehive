@@ -17,6 +17,47 @@ const (
 	collectionSourceStates = "source_states"
 )
 
+// firestoreSourceState is the Firestore representation of SourceState
+// This keeps the domain model free from infrastructure concerns
+type firestoreSourceState struct {
+	SourceID      string    `firestore:"source_id"`
+	LastFetchedAt time.Time `firestore:"last_fetched_at"`
+	LastItemID    string    `firestore:"last_item_id"`
+	LastItemDate  time.Time `firestore:"last_item_date"`
+	ItemCount     int64     `firestore:"item_count"`
+	ErrorCount    int64     `firestore:"error_count"`
+	LastError     string    `firestore:"last_error"`
+	UpdatedAt     time.Time `firestore:"updated_at"`
+}
+
+// toFirestoreSourceState converts domain model to Firestore representation
+func toFirestoreSourceState(state *model.SourceState) *firestoreSourceState {
+	return &firestoreSourceState{
+		SourceID:      state.SourceID,
+		LastFetchedAt: state.LastFetchedAt,
+		LastItemID:    state.LastItemID,
+		LastItemDate:  state.LastItemDate,
+		ItemCount:     state.ItemCount,
+		ErrorCount:    state.ErrorCount,
+		LastError:     state.LastError,
+		UpdatedAt:     state.UpdatedAt,
+	}
+}
+
+// toDomainSourceState converts Firestore representation to domain model
+func toDomainSourceState(fs *firestoreSourceState) *model.SourceState {
+	return &model.SourceState{
+		SourceID:      fs.SourceID,
+		LastFetchedAt: fs.LastFetchedAt,
+		LastItemID:    fs.LastItemID,
+		LastItemDate:  fs.LastItemDate,
+		ItemCount:     fs.ItemCount,
+		ErrorCount:    fs.ErrorCount,
+		LastError:     fs.LastError,
+		UpdatedAt:     fs.UpdatedAt,
+	}
+}
+
 type Firestore struct {
 	client *firestore.Client
 }
@@ -267,13 +308,13 @@ func (f *Firestore) GetState(ctx context.Context, sourceID string) (*model.Sourc
 			goerr.V("source_id", sourceID))
 	}
 
-	var state model.SourceState
-	if err := doc.DataTo(&state); err != nil {
+	var fsState firestoreSourceState
+	if err := doc.DataTo(&fsState); err != nil {
 		return nil, goerr.Wrap(err, "failed to decode source state",
 			goerr.V("source_id", sourceID))
 	}
 
-	return &state, nil
+	return toDomainSourceState(&fsState), nil
 }
 
 // SaveState saves or updates source state
@@ -282,10 +323,14 @@ func (f *Firestore) SaveState(ctx context.Context, state *model.SourceState) err
 		return goerr.New("source ID cannot be empty")
 	}
 
+	// Update timestamp before saving
 	state.UpdatedAt = time.Now()
 
+	// Convert to Firestore representation
+	fsState := toFirestoreSourceState(state)
+
 	docRef := f.client.Collection(collectionSourceStates).Doc(state.SourceID)
-	if _, err := docRef.Set(ctx, state); err != nil {
+	if _, err := docRef.Set(ctx, fsState); err != nil {
 		return goerr.Wrap(err, "failed to save source state to firestore",
 			goerr.V("source_id", state.SourceID))
 	}
