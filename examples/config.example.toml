@@ -1,0 +1,54 @@
+# Example configuration file for Beehive IoC sources
+# Copy this file to sources.toml and customize for your environment
+
+# RSS sources - Security blogs and vendor blogs
+[sources.google_security_blog]
+type = "rss"
+url = "https://security.googleblog.com/feeds/posts/default"
+tags = ["vendor", "google"]
+enabled = true
+rss_config = { max_articles = 10 }
+
+[sources.microsoft_security_blog]
+type = "rss"
+url = "https://www.microsoft.com/security/blog/feed/"
+tags = ["vendor", "microsoft"]
+enabled = true
+rss_config = { max_articles = 20 }
+
+[sources.crowdstrike_blog]
+type = "rss"
+url = "https://www.crowdstrike.com/blog/feed/"
+tags = ["vendor", "crowdstrike"]
+enabled = false
+rss_config = { max_articles = 15 }
+
+[sources.talos_blog]
+type = "rss"
+url = "https://blog.talosintelligence.com/rss/"
+tags = ["vendor", "cisco", "talos"]
+enabled = false
+rss_config = { max_articles = 10 }
+
+# Threat Intelligence Feeds
+[sources.abuse_ch_urlhaus]
+type = "feed"
+url = "https://urlhaus.abuse.ch/downloads/csv_recent/"
+tags = ["threat-intel", "url"]
+enabled = true
+feed_config = { schema = "abuse_ch_urlhaus", max_items = 1000 }
+
+[sources.abuse_ch_threatfox]
+type = "feed"
+url = "https://threatfox.abuse.ch/downloads/recent/"
+tags = ["threat-intel", "hash", "malware"]
+enabled = true
+feed_config = { schema = "abuse_ch_threatfox", max_items = 500 }
+
+# Additional example sources (disabled by default)
+[sources.sans_isc]
+type = "rss"
+url = "https://isc.sans.edu/rssfeed.xml"
+tags = ["community", "sans"]
+enabled = false
+rss_config = { max_articles = 10 }

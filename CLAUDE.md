@@ -4,7 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Beehive is an IoC (Indicator of Compromise) management system built with Go and React. It provides a GraphQL API for managing security indicators like IP addresses, domains, file hashes, and URLs, with support for threat intelligence integration and enrichment.
+Beehive is an IoC (Indicator of Compromise) management system built with Go and React. The system collects IoCs from multiple sources including security blog RSS feeds and threat intelligence feeds, using LLM to extract indicators from unstructured text and storing them with semantic embeddings for advanced search capabilities.
+
+### Core Capabilities
+
+- **Automated IoC Collection**: Fetches data from blog RSS feeds and threat intelligence feeds (e.g., abuse.ch)
+- **LLM-Powered Extraction**: Uses Gemini/OpenAI to extract IoCs from blog articles and security reports
+- **Semantic Search**: Stores IoCs with vector embeddings for similarity-based search
+- **Multi-Source Tracking**: Tracks IoCs across different sources with status management (active/inactive)
+- **GraphQL API**: Provides a type-safe API for querying and managing IoCs
+- **Web Interface**: React-based frontend for visualizing and analyzing threat intelligence
 
 ## Common Development Commands
 
@@ -34,9 +43,132 @@ Beehive is an IoC (Indicator of Compromise) management system built with Go and 
 - Error discrimination must be done by error types, not by parsing error messages
 
 ### Testing Best Practices
-- Use standard Go testing package
+
+**IMPORTANT**: All tests must use exact expected values. Never test "is not empty" or "count > 0". Always specify the exact values you expect.
+
+#### Using the gt Library
+
+We use `github.com/m-mizutani/gt` for all test assertions. This library provides type-safe, fluent assertions with generics.
+
+**Core Principles**:
+1. **Always test exact expected values** - Never use `gt.True(t, x != "")` or `gt.True(t, len(x) > 0)`
+2. **Use appropriate gt methods** - `gt.S()` for strings, `gt.N()` for numbers, `gt.V()` for generic values, `gt.A()` for arrays
+3. **Add descriptions** - Use `.Describe()` or `.Describef()` to explain what's being tested
+4. **Use callbacks for array elements** - When testing array elements, use `.At(index, func(t testing.TB, v T) {...})`
+
+**Good Examples**:
+```go
+// ✅ GOOD: Test exact string value
+gt.S(t, article.Title).Equal("Denmark Accuses Russia of Conducting Two Cyberattacks").Describe("first article title")
+
+// ✅ GOOD: Test exact array length
+gt.A(t, entries).Length(11).Describe("should parse all 11 URLhaus entries from real data")
+
+// ✅ GOOD: Test array element with callback
+gt.A(t, entries).At(0, func(t testing.TB, first *feed.FeedEntry) {
+    gt.V(t, first.ID).Equal("3741935").Describe("first entry ID")
+    gt.V(t, first.Type).Equal(model.IoCTypeURL).Describe("first entry type")
+})
+
+// ✅ GOOD: Test exact number value
+gt.N(t, stats.ItemsFetched).Equal(10).Describe("items fetched should be 10")
+
+// ✅ GOOD: Test with Contains for partial string match
+gt.S(t, first.Description).Contains("malware_download").Describe("description should contain threat type")
+
+// ✅ GOOD: Error assertions
+gt.NoError(t, err) // No .Describe() on NoError/Error
+gt.Error(t, err)
+```
+
+**Bad Examples (FORBIDDEN)**:
+```go
+// ❌ BAD: Testing "not empty"
+gt.False(t, article.Title == "")
+gt.True(t, article.Title != "")
+
+// ❌ BAD: Testing "count > 0"
+gt.True(t, len(articles) > 0)
+gt.True(t, len(articles) >= 3)
+
+// ❌ BAD: Using .At() without callback
+first := gt.Array(t, entries).At(0).Required()
+gt.V(t, first.ID).Equal("123") // Wrong - .At() requires a callback
+
+// ❌ BAD: Using .Describe() on NoError/Error
+gt.NoError(t, err).Describe("should not error") // Error: NoErrorTest has no method Describe
+gt.Error(t, err).Describe("should error")       // Error: ErrorTest has no method Describe
+```
+
+#### gt Method Reference
+
+- **`gt.V(t, value)`** - Generic value assertions for any type
+  - `.Equal(expected)` - Test equality
+  - `.NotEqual(unexpected)` - Test inequality
+  - `.NotNil()` / `.Nil()` - Test nil/non-nil
+
+- **`gt.S(t, string)`** - String-specific assertions
+  - `.Equal(expected)` - Exact string match
+  - `.Contains(substring)` - Substring match
+  - `.HasPrefix(prefix)` / `.HasSuffix(suffix)` - Prefix/suffix match
+
+- **`gt.N(t, number)`** - Number assertions
+  - `.Equal(expected)` - Exact number match
+  - `.Greater(min)` / `.Less(max)` - Comparison assertions
+  - `.GreaterOrEqual(min)` / `.LessOrEqual(max)`
+
+- **`gt.A(t, array)`** - Array/slice assertions
+  - `.Length(n)` - Exact length match
+  - `.At(index, func(t testing.TB, v T) {...})` - Test element at index with callback
+  - `.Has(value)` - Check if array contains value
+
+- **`gt.NoError(t, err)`** - Assert no error (does NOT support `.Describe()`)
+- **`gt.Error(t, err)`** - Assert error exists (does NOT support `.Describe()`)
+
+- **`.Describe(msg)`** - Add description to any assertion (except NoError/Error)
+- **`.Describef(format, args...)`** - Add formatted description
+
+#### Test Data Management
+
+- **Use Real Data**: Always fetch real data from actual sources and store in `testdata/` directory
+- **Never Modify Source Data**: If data format doesn't match, fix the parser code, not the test data
+- **Use `//go:embed`**: Embed test data files for reliability
+- **Exact Values in Tests**: Write exact expected values from the embedded real data
+
+Example:
+```go
+//go:embed testdata/urlhaus_sample.csv
+var urlhausSampleData []byte
+
+func TestParsing(t *testing.T) {
+    // Use real embedded data
+    entries, err := ParseData(urlhausSampleData)
+    gt.NoError(t, err)
+
+    // Test exact values from the real data
+    gt.A(t, entries).Length(11).Describe("should parse all 11 entries")
+    gt.A(t, entries).At(0, func(t testing.TB, first *Entry) {
+        gt.V(t, first.ID).Equal("3741935").Describe("first entry ID from real data")
+        gt.V(t, first.URL).Equal("https://sivqen.a8riculmarb1e.ru/0dh149h0").Describe("first entry URL from real data")
+    })
+}
+```
+
+#### Repository Testing
+
 - Use Memory repository from `pkg/repository/memory` for repository testing
 - Test both memory and firestore implementations when applicable
+- **CRITICAL: Firestore tests do NOT clean up data** (cost/performance reasons)
+  - **ALWAYS use timestamp-based unique VALUES** to avoid ID conflicts across test runs
+  - IoC values MUST be unique (not just sourceID/contextKey)
+  - Example:
+    ```go
+    sourceID := time.Now().Format("source-20060102-150405.000000")
+    value := time.Now().Format("192.168.1.150405000")  // Value must be unique!
+    contextKey := model.IoCContextKey(time.Now().Format("entry-20060102-150405.000000"))
+    ```
+  - Wrong: Using static values like `"192.168.1.1"` - will conflict on repeated test runs
+  - Right: Using timestamp-based values that are always unique
 
 ### Code Visibility
 - Do not expose unnecessary methods, variables and types
@@ -137,6 +269,18 @@ When making changes, before finishing the task, always:
 ### Language
 
 All comment and character literal in source code must be in English
+
+### Struct Tags
+
+**NEVER use Firestore struct tags** - The repository layer handles field mapping, not the domain models.
+
+- ❌ BAD: `type IoC struct { ID string `firestore:"id"` }`
+- ✅ GOOD: `type IoC struct { ID string }`
+
+Rationale:
+- Domain models should be infrastructure-agnostic
+- Firestore tags couple domain layer to infrastructure layer
+- Repository implementations handle serialization/deserialization
 
 ### Testing
 
