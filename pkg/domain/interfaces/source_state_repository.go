@@ -3,7 +3,13 @@ package interfaces
 import (
 	"context"
 
+	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
+)
+
+var (
+	// ErrSourceStateNotFound is returned when a source state is not found
+	ErrSourceStateNotFound = goerr.New("source state not found")
 )
 
 // SourceStateRepository defines the interface for source state persistence

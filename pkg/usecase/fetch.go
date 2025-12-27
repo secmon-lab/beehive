@@ -121,11 +121,15 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 	// Get previous state
 	state, err := uc.stateRepo.GetState(ctx, sourceID)
 	if err != nil {
-		if !errors.Is(err, goerr.Unwrap(err)) { // Not a "not found" error
-			logger.Warn("no previous state found, starting fresh", "source_id", sourceID)
-		}
-		state = &model.SourceState{
-			SourceID: sourceID,
+		if errors.Is(err, interfaces.ErrSourceStateNotFound) {
+			// No previous state found - this is expected for first run
+			logger.Info("no previous state found, starting fresh", "source_id", sourceID)
+			state = &model.SourceState{
+				SourceID: sourceID,
+			}
+		} else {
+			// Unexpected error - fail fast to avoid re-processing
+			return stats, goerr.Wrap(err, "failed to get source state")
 		}
 	}
 

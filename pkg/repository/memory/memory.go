@@ -10,11 +10,6 @@ import (
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 )
 
-var (
-	errIoCNotFound   = goerr.New("IoC not found")
-	errStateNotFound = goerr.New("source state not found")
-)
-
 type Memory struct {
 	iocs         map[string]*model.IoC         // key: IoC ID
 	sourceStates map[string]*model.SourceState // key: Source ID
@@ -38,7 +33,7 @@ func (m *Memory) GetIoC(ctx context.Context, id string) (*model.IoC, error) {
 
 	ioc, ok := m.iocs[id]
 	if !ok {
-		return nil, goerr.Wrap(errIoCNotFound, "IoC not found", goerr.V("id", id))
+		return nil, interfaces.ErrIoCNotFound
 	}
 
 	// Return a copy to prevent external modification
@@ -150,7 +145,7 @@ func (m *Memory) GetState(ctx context.Context, sourceID string) (*model.SourceSt
 
 	state, ok := m.sourceStates[sourceID]
 	if !ok {
-		return nil, goerr.Wrap(errStateNotFound, "source state not found", goerr.V("source_id", sourceID))
+		return nil, interfaces.ErrSourceStateNotFound
 	}
 
 	// Return a copy to prevent external modification

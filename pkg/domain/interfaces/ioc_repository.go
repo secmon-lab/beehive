@@ -3,7 +3,13 @@ package interfaces
 import (
 	"context"
 
+	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
+)
+
+var (
+	// ErrIoCNotFound is returned when an IoC is not found
+	ErrIoCNotFound = goerr.New("IoC not found")
 )
 
 // BatchUpsertResult represents the result of a batch upsert operation

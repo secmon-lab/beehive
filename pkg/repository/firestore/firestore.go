@@ -17,11 +17,6 @@ const (
 	collectionSourceStates = "source_states"
 )
 
-var (
-	errIoCNotFound   = goerr.New("IoC not found")
-	errStateNotFound = goerr.New("source state not found")
-)
-
 type Firestore struct {
 	client *firestore.Client
 }
@@ -82,7 +77,7 @@ func (f *Firestore) GetIoC(ctx context.Context, id string) (*model.IoC, error) {
 	doc, err := f.client.Collection(collectionIoCs).Doc(id).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			return nil, goerr.Wrap(errIoCNotFound, "IoC not found", goerr.V("id", id))
+			return nil, goerr.Wrap(interfaces.ErrIoCNotFound, "IoC not found", goerr.V("id", id))
 		}
 		return nil, goerr.Wrap(err, "failed to get IoC from firestore", goerr.V("id", id))
 	}
@@ -266,7 +261,7 @@ func (f *Firestore) GetState(ctx context.Context, sourceID string) (*model.Sourc
 	doc, err := f.client.Collection(collectionSourceStates).Doc(sourceID).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			return nil, goerr.Wrap(errStateNotFound, "source state not found", goerr.V("source_id", sourceID))
+			return nil, goerr.Wrap(interfaces.ErrSourceStateNotFound, "source state not found", goerr.V("source_id", sourceID))
 		}
 		return nil, goerr.Wrap(err, "failed to get source state from firestore",
 			goerr.V("source_id", sourceID))
