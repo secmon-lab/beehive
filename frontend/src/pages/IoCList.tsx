@@ -26,6 +26,8 @@ interface ListIoCsData {
   listIoCs: IoCConnection
 }
 
+// TODO: Use GraphQL Code Generator to auto-generate these types from schema
+// These must match the GraphQL schema enums: IoCSortField and SortOrder
 type SortField = 'TYPE' | 'VALUE' | 'SOURCE_ID' | 'STATUS' | 'FIRST_SEEN_AT' | 'UPDATED_AT'
 type SortOrder = 'ASC' | 'DESC'
 

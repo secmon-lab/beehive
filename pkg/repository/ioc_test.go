@@ -237,6 +237,127 @@ func runIoCRepositoryTest(t *testing.T, repo interfaces.IoCRepository) {
 		}
 	})
 
+	t.Run("list IoCs with pagination", func(t *testing.T) {
+		sourceID := time.Now().Format("source-20060102-150405.000000")
+
+		// Insert 25 IoCs to test pagination
+		insertedIDs := make([]string, 25)
+		for i := 0; i < 25; i++ {
+			ts := time.Now().UnixNano()
+			value := fmt.Sprintf("192.168.1.%d", ts%255)
+			contextKey := model.IoCContextKey(fmt.Sprintf("entry-%s-%d", time.Now().Format("20060102-150405.000000"), i))
+			iocID := model.GenerateID(sourceID, model.IoCTypeIPv4, value, contextKey)
+			insertedIDs[i] = iocID
+
+			ioc := &model.IoC{
+				ID:         iocID,
+				SourceID:   sourceID,
+				SourceType: "feed",
+				Type:       model.IoCTypeIPv4,
+				Value:      value,
+				Status:     model.IoCStatusActive,
+				Embedding:  make(firestore.Vector32, model.EmbeddingDimension),
+			}
+
+			gt.NoError(t, repo.UpsertIoC(ctx, ioc))
+			time.Sleep(1 * time.Millisecond)
+		}
+
+		// Test first page (limit 10)
+		result, err := repo.ListIoCs(ctx, &model.IoCListOptions{
+			Limit: 10,
+		})
+		gt.NoError(t, err)
+		gt.N(t, len(result.Items)).GreaterOrEqual(10).Describe("first page should have at least 10 items")
+		gt.N(t, result.Total).GreaterOrEqual(25).Describe("total should be at least 25")
+
+		// Test second page (offset 10, limit 10)
+		result2, err := repo.ListIoCs(ctx, &model.IoCListOptions{
+			Offset: 10,
+			Limit:  10,
+		})
+		gt.NoError(t, err)
+		gt.N(t, len(result2.Items)).GreaterOrEqual(10).Describe("second page should have at least 10 items")
+
+		// Test third page (offset 20, limit 10)
+		result3, err := repo.ListIoCs(ctx, &model.IoCListOptions{
+			Offset: 20,
+			Limit:  10,
+		})
+		gt.NoError(t, err)
+		gt.N(t, len(result3.Items)).GreaterOrEqual(5).Describe("third page should have at least 5 items")
+	})
+
+	t.Run("list IoCs with sorting", func(t *testing.T) {
+		sourceID := time.Now().Format("source-20060102-150405.000000")
+
+		// Insert IoCs with different values for sorting
+		values := []string{"zebra.com", "apple.com", "microsoft.com"}
+		for i, val := range values {
+			contextKey := model.IoCContextKey(fmt.Sprintf("entry-%s-%d", time.Now().Format("20060102-150405.000000"), i))
+			iocID := model.GenerateID(sourceID, model.IoCTypeDomain, val, contextKey)
+
+			ioc := &model.IoC{
+				ID:         iocID,
+				SourceID:   sourceID,
+				SourceType: "feed",
+				Type:       model.IoCTypeDomain,
+				Value:      val,
+				Status:     model.IoCStatusActive,
+				Embedding:  make(firestore.Vector32, model.EmbeddingDimension),
+			}
+
+			gt.NoError(t, repo.UpsertIoC(ctx, ioc))
+			time.Sleep(2 * time.Millisecond)
+		}
+
+		// Test ascending sort by value
+		resultAsc, err := repo.ListIoCs(ctx, &model.IoCListOptions{
+			SortField: model.IoCSortByValue,
+			SortOrder: model.SortOrderAsc,
+			Limit:     10,
+		})
+		gt.NoError(t, err)
+		gt.N(t, len(resultAsc.Items)).GreaterOrEqual(3).Describe("should have at least 3 items")
+
+		// Find our test values in the result
+		var foundValues []string
+		for _, ioc := range resultAsc.Items {
+			if ioc.SourceID == sourceID {
+				foundValues = append(foundValues, ioc.Value)
+			}
+		}
+		if len(foundValues) >= 2 {
+			// Verify ascending order for consecutive values
+			for i := 1; i < len(foundValues); i++ {
+				gt.True(t, foundValues[i] >= foundValues[i-1])
+			}
+		}
+
+		// Test descending sort by value
+		resultDesc, err := repo.ListIoCs(ctx, &model.IoCListOptions{
+			SortField: model.IoCSortByValue,
+			SortOrder: model.SortOrderDesc,
+			Limit:     10,
+		})
+		gt.NoError(t, err)
+		gt.N(t, len(resultDesc.Items)).GreaterOrEqual(3).Describe("should have at least 3 items")
+
+		// Find our test values in descending result
+		foundValues = []string{}
+		for _, ioc := range resultDesc.Items {
+			if ioc.SourceID == sourceID {
+				foundValues = append(foundValues, ioc.Value)
+			}
+		}
+		if len(foundValues) >= 2 {
+			// Verify descending order for consecutive values
+			for i := 1; i < len(foundValues); i++ {
+				gt.True(t, foundValues[i] <= foundValues[i-1])
+			}
+		}
+	})
+
 	t.Run("different IoC types", func(t *testing.T) {
 		sourceID := time.Now().Format("source-20060102-150405.000000")
 

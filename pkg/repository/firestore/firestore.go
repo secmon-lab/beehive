@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	firestorepb "cloud.google.com/go/firestore/apiv1/firestorepb"
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
@@ -206,13 +207,15 @@ func (f *Firestore) ListIoCs(ctx context.Context, opts *model.IoCListOptions) (*
 		return nil, goerr.New("total count not found in aggregation result")
 	}
 
-	// The count is returned as *int64
-	countVal, ok := totalValue.(*int64)
+	// Convert count value to int
+	// Firestore aggregation returns *firestorepb.Value (protobuf type)
+	pbValue, ok := totalValue.(*firestorepb.Value)
 	if !ok {
 		return nil, goerr.New("total count has unexpected type",
-			goerr.V("type", fmt.Sprintf("%T", totalValue)))
+			goerr.V("type", fmt.Sprintf("%T", totalValue)),
+			goerr.V("value", totalValue))
 	}
-	total := int(*countVal)
+	total := int(pbValue.GetIntegerValue())
 
 	// Apply pagination using Firestore's Offset and Limit
 	offset := 0
