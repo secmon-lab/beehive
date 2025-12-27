@@ -24,8 +24,21 @@ interface GetIoCData {
 function IoCDetail() {
   const { id } = useParams<{ id: string }>()
   const { loading, error, data } = useQuery<GetIoCData>(GET_IOC, {
-    variables: { id },
+    variables: { id: id! },
+    skip: !id, // Skip query if id is missing
   })
+
+  // Handle missing ID parameter
+  if (!id) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.error}>IoC ID is missing</div>
+        <Link to="/ioc" className={styles.backLink}>
+          ← Back to IoC List
+        </Link>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
