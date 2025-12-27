@@ -2,6 +2,7 @@ package firestore
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -191,14 +192,29 @@ func (f *Firestore) ListIoCs(ctx context.Context, opts *model.IoCListOptions) (*
 		query = query.OrderBy("UpdatedAt", firestore.Desc)
 	}
 
-	// Get total count (before pagination)
-	allDocs, err := query.Documents(ctx).GetAll()
+	// Get total count using aggregation query
+	// NOTE: If filters are added in the future, the same filters must be applied here
+	aggregationQuery := f.client.Collection(collectionIoCs).NewAggregationQuery().WithCount("total")
+	aggregationResults, err := aggregationQuery.Get(ctx)
 	if err != nil {
-		return nil, goerr.Wrap(err, "failed to query IoCs")
+		return nil, goerr.Wrap(err, "failed to get total count")
 	}
-	total := len(allDocs)
 
-	// Apply pagination
+	// Extract count from aggregation result (AggregationResult is map[string]interface{})
+	totalValue, ok := aggregationResults["total"]
+	if !ok {
+		return nil, goerr.New("total count not found in aggregation result")
+	}
+
+	// The count is returned as *int64
+	countVal, ok := totalValue.(*int64)
+	if !ok {
+		return nil, goerr.New("total count has unexpected type",
+			goerr.V("type", fmt.Sprintf("%T", totalValue)))
+	}
+	total := int(*countVal)
+
+	// Apply pagination using Firestore's Offset and Limit
 	offset := 0
 	limit := 20 // default
 	if opts != nil {
@@ -210,22 +226,22 @@ func (f *Firestore) ListIoCs(ctx context.Context, opts *model.IoCListOptions) (*
 		}
 	}
 
-	// Apply offset and limit to the slice
-	start := offset
-	end := offset + limit
-	if start > total {
-		start = total
-	}
-	if end > total {
-		end = total
+	// Apply Firestore pagination
+	query = query.Offset(offset).Limit(limit)
+
+	// Execute query
+	docs, err := query.Documents(ctx).GetAll()
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to query IoCs")
 	}
 
+	// Parse results
 	var iocs []*model.IoC
-	for i := start; i < end; i++ {
+	for _, doc := range docs {
 		var ioc model.IoC
-		if err := allDocs[i].DataTo(&ioc); err != nil {
+		if err := doc.DataTo(&ioc); err != nil {
 			return nil, goerr.Wrap(err, "failed to decode IoC",
-				goerr.V("doc_id", allDocs[i].Ref.ID))
+				goerr.V("doc_id", doc.Ref.ID))
 		}
 		iocs = append(iocs, &ioc)
 	}
