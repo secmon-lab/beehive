@@ -2,8 +2,180 @@
 
 package graphql
 
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"strconv"
+	"time"
+)
+
+type IoC struct {
+	ID          string    `json:"id"`
+	SourceID    string    `json:"sourceID"`
+	SourceType  string    `json:"sourceType"`
+	Type        string    `json:"type"`
+	Value       string    `json:"value"`
+	Description string    `json:"description"`
+	SourceURL   *string   `json:"sourceURL,omitempty"`
+	Context     string    `json:"context"`
+	Status      string    `json:"status"`
+	FirstSeenAt time.Time `json:"firstSeenAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type IoCConnection struct {
+	Items []*IoC `json:"items"`
+	Total int    `json:"total"`
+}
+
+type IoCListOptions struct {
+	Offset    *int          `json:"offset,omitempty"`
+	Limit     *int          `json:"limit,omitempty"`
+	SortField *IoCSortField `json:"sortField,omitempty"`
+	SortOrder *SortOrder    `json:"sortOrder,omitempty"`
+}
+
 type Mutation struct {
 }
 
 type Query struct {
+}
+
+type Source struct {
+	ID      string       `json:"id"`
+	Type    string       `json:"type"`
+	URL     string       `json:"url"`
+	Tags    []string     `json:"tags"`
+	Enabled bool         `json:"enabled"`
+	State   *SourceState `json:"state,omitempty"`
+}
+
+type SourceState struct {
+	SourceID      string     `json:"sourceID"`
+	LastFetchedAt *time.Time `json:"lastFetchedAt,omitempty"`
+	LastItemID    *string    `json:"lastItemID,omitempty"`
+	LastItemDate  *time.Time `json:"lastItemDate,omitempty"`
+	ItemCount     int        `json:"itemCount"`
+	ErrorCount    int        `json:"errorCount"`
+	LastError     *string    `json:"lastError,omitempty"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
+}
+
+type IoCSortField string
+
+const (
+	IoCSortFieldType        IoCSortField = "TYPE"
+	IoCSortFieldValue       IoCSortField = "VALUE"
+	IoCSortFieldSourceID    IoCSortField = "SOURCE_ID"
+	IoCSortFieldStatus      IoCSortField = "STATUS"
+	IoCSortFieldFirstSeenAt IoCSortField = "FIRST_SEEN_AT"
+	IoCSortFieldUpdatedAt   IoCSortField = "UPDATED_AT"
+)
+
+var AllIoCSortField = []IoCSortField{
+	IoCSortFieldType,
+	IoCSortFieldValue,
+	IoCSortFieldSourceID,
+	IoCSortFieldStatus,
+	IoCSortFieldFirstSeenAt,
+	IoCSortFieldUpdatedAt,
+}
+
+func (e IoCSortField) IsValid() bool {
+	switch e {
+	case IoCSortFieldType, IoCSortFieldValue, IoCSortFieldSourceID, IoCSortFieldStatus, IoCSortFieldFirstSeenAt, IoCSortFieldUpdatedAt:
+		return true
+	}
+	return false
+}
+
+func (e IoCSortField) String() string {
+	return string(e)
+}
+
+func (e *IoCSortField) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = IoCSortField(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid IoCSortField", str)
+	}
+	return nil
+}
+
+func (e IoCSortField) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *IoCSortField) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e IoCSortField) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SortOrder string
+
+const (
+	SortOrderAsc  SortOrder = "ASC"
+	SortOrderDesc SortOrder = "DESC"
+)
+
+var AllSortOrder = []SortOrder{
+	SortOrderAsc,
+	SortOrderDesc,
+}
+
+func (e SortOrder) IsValid() bool {
+	switch e {
+	case SortOrderAsc, SortOrderDesc:
+		return true
+	}
+	return false
+}
+
+func (e SortOrder) String() string {
+	return string(e)
+}
+
+func (e *SortOrder) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SortOrder(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SortOrder", str)
+	}
+	return nil
+}
+
+func (e SortOrder) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SortOrder) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SortOrder) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

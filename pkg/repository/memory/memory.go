@@ -57,6 +57,70 @@ func (m *Memory) ListIoCsBySource(ctx context.Context, sourceID string) ([]*mode
 	return result, nil
 }
 
+// ListAllIoCs lists all IoCs across all sources
+func (m *Memory) ListAllIoCs(ctx context.Context) ([]*model.IoC, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var result []*model.IoC
+	for _, ioc := range m.iocs {
+		iocCopy := *ioc
+		result = append(result, &iocCopy)
+	}
+
+	return result, nil
+}
+
+// ListIoCs lists IoCs with pagination and sorting
+func (m *Memory) ListIoCs(ctx context.Context, opts *model.IoCListOptions) (*model.IoCConnection, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Get all IoCs
+	allIoCs := make([]*model.IoC, 0, len(m.iocs))
+	for _, ioc := range m.iocs {
+		iocCopy := *ioc
+		allIoCs = append(allIoCs, &iocCopy)
+	}
+
+	// Sort
+	if opts != nil && opts.SortField != "" {
+		sortIoCs(allIoCs, opts.SortField, opts.SortOrder)
+	}
+
+	total := len(allIoCs)
+
+	// Apply pagination
+	if opts != nil {
+		offset := opts.Offset
+		limit := opts.Limit
+
+		if offset < 0 {
+			offset = 0
+		}
+		if limit <= 0 {
+			limit = 20 // default
+		}
+
+		start := offset
+		end := offset + limit
+
+		if start > total {
+			start = total
+		}
+		if end > total {
+			end = total
+		}
+
+		allIoCs = allIoCs[start:end]
+	}
+
+	return &model.IoCConnection{
+		Items: allIoCs,
+		Total: total,
+	}, nil
+}
+
 // UpsertIoC inserts or updates an IoC
 func (m *Memory) UpsertIoC(ctx context.Context, ioc *model.IoC) error {
 	if err := model.ValidateIoC(ioc); err != nil {
@@ -70,8 +134,11 @@ func (m *Memory) UpsertIoC(ctx context.Context, ioc *model.IoC) error {
 
 	// Check if IoC already exists
 	if existing, ok := m.iocs[ioc.ID]; ok {
-		// Existing IoC - only update if description or status changed
-		needsUpdate := existing.Description != ioc.Description || existing.Status != ioc.Status
+		// Existing IoC - check if any field changed (for feed sources, update if anything changed)
+		needsUpdate := existing.Description != ioc.Description ||
+			existing.Status != ioc.Status ||
+			existing.SourceURL != ioc.SourceURL ||
+			existing.Context != ioc.Context
 		if !needsUpdate {
 			// Skip - no changes needed
 			return nil
@@ -112,8 +179,11 @@ func (m *Memory) BatchUpsertIoCs(ctx context.Context, iocs []*model.IoC) (*inter
 
 		// Check if IoC already exists
 		if existing, ok := m.iocs[ioc.ID]; ok {
-			// Existing IoC - only update if description or status changed
-			needsUpdate := existing.Description != ioc.Description || existing.Status != ioc.Status
+			// Existing IoC - check if any field changed (for feed sources, update if anything changed)
+			needsUpdate := existing.Description != ioc.Description ||
+				existing.Status != ioc.Status ||
+				existing.SourceURL != ioc.SourceURL ||
+				existing.Context != ioc.Context
 			if !needsUpdate {
 				// Skip - no changes needed
 				result.Unchanged++

@@ -10,9 +10,11 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
+	graphql1 "github.com/secmon-lab/beehive/pkg/domain/model/graphql"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -45,12 +47,54 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	IoC struct {
+		Context     func(childComplexity int) int
+		Description func(childComplexity int) int
+		FirstSeenAt func(childComplexity int) int
+		ID          func(childComplexity int) int
+		SourceID    func(childComplexity int) int
+		SourceType  func(childComplexity int) int
+		SourceURL   func(childComplexity int) int
+		Status      func(childComplexity int) int
+		Type        func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		Value       func(childComplexity int) int
+	}
+
+	IoCConnection struct {
+		Items func(childComplexity int) int
+		Total func(childComplexity int) int
+	}
+
 	Mutation struct {
 		Noop func(childComplexity int) int
 	}
 
 	Query struct {
-		Health func(childComplexity int) int
+		GetIoC      func(childComplexity int, id string) int
+		Health      func(childComplexity int) int
+		ListIoCs    func(childComplexity int, options *graphql1.IoCListOptions) int
+		ListSources func(childComplexity int) int
+	}
+
+	Source struct {
+		Enabled func(childComplexity int) int
+		ID      func(childComplexity int) int
+		State   func(childComplexity int) int
+		Tags    func(childComplexity int) int
+		Type    func(childComplexity int) int
+		URL     func(childComplexity int) int
+	}
+
+	SourceState struct {
+		ErrorCount    func(childComplexity int) int
+		ItemCount     func(childComplexity int) int
+		LastError     func(childComplexity int) int
+		LastFetchedAt func(childComplexity int) int
+		LastItemDate  func(childComplexity int) int
+		LastItemID    func(childComplexity int) int
+		SourceID      func(childComplexity int) int
+		UpdatedAt     func(childComplexity int) int
 	}
 }
 
@@ -59,6 +103,9 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	Health(ctx context.Context) (string, error)
+	ListIoCs(ctx context.Context, options *graphql1.IoCListOptions) (*graphql1.IoCConnection, error)
+	GetIoC(ctx context.Context, id string) (*graphql1.IoC, error)
+	ListSources(ctx context.Context) ([]*graphql1.Source, error)
 }
 
 type executableSchema struct {
@@ -80,6 +127,86 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	_ = ec
 	switch typeName + "." + field {
 
+	case "IoC.context":
+		if e.complexity.IoC.Context == nil {
+			break
+		}
+
+		return e.complexity.IoC.Context(childComplexity), true
+	case "IoC.description":
+		if e.complexity.IoC.Description == nil {
+			break
+		}
+
+		return e.complexity.IoC.Description(childComplexity), true
+	case "IoC.firstSeenAt":
+		if e.complexity.IoC.FirstSeenAt == nil {
+			break
+		}
+
+		return e.complexity.IoC.FirstSeenAt(childComplexity), true
+	case "IoC.id":
+		if e.complexity.IoC.ID == nil {
+			break
+		}
+
+		return e.complexity.IoC.ID(childComplexity), true
+	case "IoC.sourceID":
+		if e.complexity.IoC.SourceID == nil {
+			break
+		}
+
+		return e.complexity.IoC.SourceID(childComplexity), true
+	case "IoC.sourceType":
+		if e.complexity.IoC.SourceType == nil {
+			break
+		}
+
+		return e.complexity.IoC.SourceType(childComplexity), true
+	case "IoC.sourceURL":
+		if e.complexity.IoC.SourceURL == nil {
+			break
+		}
+
+		return e.complexity.IoC.SourceURL(childComplexity), true
+	case "IoC.status":
+		if e.complexity.IoC.Status == nil {
+			break
+		}
+
+		return e.complexity.IoC.Status(childComplexity), true
+	case "IoC.type":
+		if e.complexity.IoC.Type == nil {
+			break
+		}
+
+		return e.complexity.IoC.Type(childComplexity), true
+	case "IoC.updatedAt":
+		if e.complexity.IoC.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.IoC.UpdatedAt(childComplexity), true
+	case "IoC.value":
+		if e.complexity.IoC.Value == nil {
+			break
+		}
+
+		return e.complexity.IoC.Value(childComplexity), true
+
+	case "IoCConnection.items":
+		if e.complexity.IoCConnection.Items == nil {
+			break
+		}
+
+		return e.complexity.IoCConnection.Items(childComplexity), true
+	case "IoCConnection.total":
+		if e.complexity.IoCConnection.Total == nil {
+			break
+		}
+
+		return e.complexity.IoCConnection.Total(childComplexity), true
+
 	case "Mutation.noop":
 		if e.complexity.Mutation.Noop == nil {
 			break
@@ -87,12 +214,126 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.Noop(childComplexity), true
 
+	case "Query.getIoC":
+		if e.complexity.Query.GetIoC == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getIoC_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetIoC(childComplexity, args["id"].(string)), true
 	case "Query.health":
 		if e.complexity.Query.Health == nil {
 			break
 		}
 
 		return e.complexity.Query.Health(childComplexity), true
+	case "Query.listIoCs":
+		if e.complexity.Query.ListIoCs == nil {
+			break
+		}
+
+		args, err := ec.field_Query_listIoCs_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ListIoCs(childComplexity, args["options"].(*graphql1.IoCListOptions)), true
+	case "Query.listSources":
+		if e.complexity.Query.ListSources == nil {
+			break
+		}
+
+		return e.complexity.Query.ListSources(childComplexity), true
+
+	case "Source.enabled":
+		if e.complexity.Source.Enabled == nil {
+			break
+		}
+
+		return e.complexity.Source.Enabled(childComplexity), true
+	case "Source.id":
+		if e.complexity.Source.ID == nil {
+			break
+		}
+
+		return e.complexity.Source.ID(childComplexity), true
+	case "Source.state":
+		if e.complexity.Source.State == nil {
+			break
+		}
+
+		return e.complexity.Source.State(childComplexity), true
+	case "Source.tags":
+		if e.complexity.Source.Tags == nil {
+			break
+		}
+
+		return e.complexity.Source.Tags(childComplexity), true
+	case "Source.type":
+		if e.complexity.Source.Type == nil {
+			break
+		}
+
+		return e.complexity.Source.Type(childComplexity), true
+	case "Source.url":
+		if e.complexity.Source.URL == nil {
+			break
+		}
+
+		return e.complexity.Source.URL(childComplexity), true
+
+	case "SourceState.errorCount":
+		if e.complexity.SourceState.ErrorCount == nil {
+			break
+		}
+
+		return e.complexity.SourceState.ErrorCount(childComplexity), true
+	case "SourceState.itemCount":
+		if e.complexity.SourceState.ItemCount == nil {
+			break
+		}
+
+		return e.complexity.SourceState.ItemCount(childComplexity), true
+	case "SourceState.lastError":
+		if e.complexity.SourceState.LastError == nil {
+			break
+		}
+
+		return e.complexity.SourceState.LastError(childComplexity), true
+	case "SourceState.lastFetchedAt":
+		if e.complexity.SourceState.LastFetchedAt == nil {
+			break
+		}
+
+		return e.complexity.SourceState.LastFetchedAt(childComplexity), true
+	case "SourceState.lastItemDate":
+		if e.complexity.SourceState.LastItemDate == nil {
+			break
+		}
+
+		return e.complexity.SourceState.LastItemDate(childComplexity), true
+	case "SourceState.lastItemID":
+		if e.complexity.SourceState.LastItemID == nil {
+			break
+		}
+
+		return e.complexity.SourceState.LastItemID(childComplexity), true
+	case "SourceState.sourceID":
+		if e.complexity.SourceState.SourceID == nil {
+			break
+		}
+
+		return e.complexity.SourceState.SourceID(childComplexity), true
+	case "SourceState.updatedAt":
+		if e.complexity.SourceState.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.SourceState.UpdatedAt(childComplexity), true
 
 	}
 	return 0, false
@@ -101,7 +342,9 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputIoCListOptions,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -198,8 +441,73 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "../../../graphql/schema.graphql", Input: `type Query {
+	{Name: "../../../graphql/schema.graphql", Input: `scalar Time
+
+type IoC {
+  id: ID!
+  sourceID: String!
+  sourceType: String!
+  type: String!
+  value: String!
+  description: String!
+  sourceURL: String
+  context: String!
+  status: String!
+  firstSeenAt: Time!
+  updatedAt: Time!
+}
+
+type IoCConnection {
+  items: [IoC!]!
+  total: Int!
+}
+
+enum IoCSortField {
+  TYPE
+  VALUE
+  SOURCE_ID
+  STATUS
+  FIRST_SEEN_AT
+  UPDATED_AT
+}
+
+enum SortOrder {
+  ASC
+  DESC
+}
+
+input IoCListOptions {
+  offset: Int
+  limit: Int
+  sortField: IoCSortField
+  sortOrder: SortOrder
+}
+
+type Source {
+  id: ID!
+  type: String!
+  url: String!
+  tags: [String!]!
+  enabled: Boolean!
+  state: SourceState
+}
+
+type SourceState {
+  sourceID: String!
+  lastFetchedAt: Time
+  lastItemID: String
+  lastItemDate: Time
+  itemCount: Int!
+  errorCount: Int!
+  lastError: String
+  updatedAt: Time!
+}
+
+type Query {
   health: String!
+  listIoCs(options: IoCListOptions): IoCConnection!
+  getIoC(id: ID!): IoC
+  listSources: [Source!]!
 }
 
 type Mutation {
@@ -221,6 +529,28 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_getIoC_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_listIoCs_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "options", ec.unmarshalOIoCListOptions2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCListOptions)
+	if err != nil {
+		return nil, err
+	}
+	args["options"] = arg0
 	return args, nil
 }
 
@@ -276,6 +606,407 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
+func (ec *executionContext) _IoC_id(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_sourceID(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_sourceID,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_sourceID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_sourceType(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_sourceType,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_sourceType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_type(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_value(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_value,
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_description(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_sourceURL(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_sourceURL,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceURL, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_sourceURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_context(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_context,
+		func(ctx context.Context) (any, error) {
+			return obj.Context, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_context(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_status(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_firstSeenAt(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_firstSeenAt,
+		func(ctx context.Context) (any, error) {
+			return obj.FirstSeenAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_firstSeenAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoC_updatedAt(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoC_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoC_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoC",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoCConnection_items(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoCConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoCConnection_items,
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		ec.marshalNIoC2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoCConnection_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoCConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IoC_id(ctx, field)
+			case "sourceID":
+				return ec.fieldContext_IoC_sourceID(ctx, field)
+			case "sourceType":
+				return ec.fieldContext_IoC_sourceType(ctx, field)
+			case "type":
+				return ec.fieldContext_IoC_type(ctx, field)
+			case "value":
+				return ec.fieldContext_IoC_value(ctx, field)
+			case "description":
+				return ec.fieldContext_IoC_description(ctx, field)
+			case "sourceURL":
+				return ec.fieldContext_IoC_sourceURL(ctx, field)
+			case "context":
+				return ec.fieldContext_IoC_context(ctx, field)
+			case "status":
+				return ec.fieldContext_IoC_status(ctx, field)
+			case "firstSeenAt":
+				return ec.fieldContext_IoC_firstSeenAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IoC_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IoC", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IoCConnection_total(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoCConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IoCConnection_total,
+		func(ctx context.Context) (any, error) {
+			return obj.Total, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IoCConnection_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IoCConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_noop(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -329,6 +1060,161 @@ func (ec *executionContext) fieldContext_Query_health(_ context.Context, field g
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_listIoCs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_listIoCs,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ListIoCs(ctx, fc.Args["options"].(*graphql1.IoCListOptions))
+		},
+		nil,
+		ec.marshalNIoCConnection2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_listIoCs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "items":
+				return ec.fieldContext_IoCConnection_items(ctx, field)
+			case "total":
+				return ec.fieldContext_IoCConnection_total(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IoCConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_listIoCs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getIoC(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_getIoC,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().GetIoC(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOIoC2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoC,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_getIoC(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IoC_id(ctx, field)
+			case "sourceID":
+				return ec.fieldContext_IoC_sourceID(ctx, field)
+			case "sourceType":
+				return ec.fieldContext_IoC_sourceType(ctx, field)
+			case "type":
+				return ec.fieldContext_IoC_type(ctx, field)
+			case "value":
+				return ec.fieldContext_IoC_value(ctx, field)
+			case "description":
+				return ec.fieldContext_IoC_description(ctx, field)
+			case "sourceURL":
+				return ec.fieldContext_IoC_sourceURL(ctx, field)
+			case "context":
+				return ec.fieldContext_IoC_context(ctx, field)
+			case "status":
+				return ec.fieldContext_IoC_status(ctx, field)
+			case "firstSeenAt":
+				return ec.fieldContext_IoC_firstSeenAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IoC_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IoC", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getIoC_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_listSources(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_listSources,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().ListSources(ctx)
+		},
+		nil,
+		ec.marshalNSource2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSourceᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_listSources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Source_id(ctx, field)
+			case "type":
+				return ec.fieldContext_Source_type(ctx, field)
+			case "url":
+				return ec.fieldContext_Source_url(ctx, field)
+			case "tags":
+				return ec.fieldContext_Source_tags(ctx, field)
+			case "enabled":
+				return ec.fieldContext_Source_enabled(ctx, field)
+			case "state":
+				return ec.fieldContext_Source_state(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Source", field.Name)
 		},
 	}
 	return fc, nil
@@ -437,6 +1323,430 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_id(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_type(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_url(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_url,
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_tags(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_tags,
+		func(ctx context.Context) (any, error) {
+			return obj.Tags, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_tags(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_enabled(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_enabled,
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_state(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_state,
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		ec.marshalOSourceState2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSourceState,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "sourceID":
+				return ec.fieldContext_SourceState_sourceID(ctx, field)
+			case "lastFetchedAt":
+				return ec.fieldContext_SourceState_lastFetchedAt(ctx, field)
+			case "lastItemID":
+				return ec.fieldContext_SourceState_lastItemID(ctx, field)
+			case "lastItemDate":
+				return ec.fieldContext_SourceState_lastItemDate(ctx, field)
+			case "itemCount":
+				return ec.fieldContext_SourceState_itemCount(ctx, field)
+			case "errorCount":
+				return ec.fieldContext_SourceState_errorCount(ctx, field)
+			case "lastError":
+				return ec.fieldContext_SourceState_lastError(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SourceState_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SourceState", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceState_sourceID(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceState_sourceID,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceState_sourceID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceState_lastFetchedAt(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceState_lastFetchedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.LastFetchedAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceState_lastFetchedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceState_lastItemID(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceState_lastItemID,
+		func(ctx context.Context) (any, error) {
+			return obj.LastItemID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceState_lastItemID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceState_lastItemDate(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceState_lastItemDate,
+		func(ctx context.Context) (any, error) {
+			return obj.LastItemDate, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceState_lastItemDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceState_itemCount(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceState_itemCount,
+		func(ctx context.Context) (any, error) {
+			return obj.ItemCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceState_itemCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceState_errorCount(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceState_errorCount,
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceState_errorCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceState_lastError(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceState_lastError,
+		func(ctx context.Context) (any, error) {
+			return obj.LastError, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceState_lastError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceState_updatedAt(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceState_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceState_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -1888,6 +3198,54 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputIoCListOptions(ctx context.Context, obj any) (graphql1.IoCListOptions, error) {
+	var it graphql1.IoCListOptions
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"offset", "limit", "sortField", "sortOrder"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "offset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Offset = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		case "sortField":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortField"))
+			data, err := ec.unmarshalOIoCSortField2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCSortField(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SortField = data
+		case "sortOrder":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortOrder"))
+			data, err := ec.unmarshalOSortOrder2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSortOrder(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SortOrder = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -1895,6 +3253,136 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 // endregion ************************** interface.gotpl ***************************
 
 // region    **************************** object.gotpl ****************************
+
+var ioCImplementors = []string{"IoC"}
+
+func (ec *executionContext) _IoC(ctx context.Context, sel ast.SelectionSet, obj *graphql1.IoC) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ioCImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IoC")
+		case "id":
+			out.Values[i] = ec._IoC_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceID":
+			out.Values[i] = ec._IoC_sourceID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceType":
+			out.Values[i] = ec._IoC_sourceType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._IoC_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._IoC_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._IoC_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceURL":
+			out.Values[i] = ec._IoC_sourceURL(ctx, field, obj)
+		case "context":
+			out.Values[i] = ec._IoC_context(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._IoC_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "firstSeenAt":
+			out.Values[i] = ec._IoC_firstSeenAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._IoC_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var ioCConnectionImplementors = []string{"IoCConnection"}
+
+func (ec *executionContext) _IoCConnection(ctx context.Context, sel ast.SelectionSet, obj *graphql1.IoCConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ioCConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IoCConnection")
+		case "items":
+			out.Values[i] = ec._IoCConnection_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "total":
+			out.Values[i] = ec._IoCConnection_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
 
 var mutationImplementors = []string{"Mutation"}
 
@@ -1983,6 +3471,69 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "listIoCs":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_listIoCs(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getIoC":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getIoC(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "listSources":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_listSources(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -1991,6 +3542,129 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var sourceImplementors = []string{"Source"}
+
+func (ec *executionContext) _Source(ctx context.Context, sel ast.SelectionSet, obj *graphql1.Source) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sourceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Source")
+		case "id":
+			out.Values[i] = ec._Source_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._Source_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._Source_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tags":
+			out.Values[i] = ec._Source_tags(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabled":
+			out.Values[i] = ec._Source_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._Source_state(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var sourceStateImplementors = []string{"SourceState"}
+
+func (ec *executionContext) _SourceState(ctx context.Context, sel ast.SelectionSet, obj *graphql1.SourceState) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sourceStateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SourceState")
+		case "sourceID":
+			out.Values[i] = ec._SourceState_sourceID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastFetchedAt":
+			out.Values[i] = ec._SourceState_lastFetchedAt(ctx, field, obj)
+		case "lastItemID":
+			out.Values[i] = ec._SourceState_lastItemID(ctx, field, obj)
+		case "lastItemDate":
+			out.Values[i] = ec._SourceState_lastItemDate(ctx, field, obj)
+		case "itemCount":
+			out.Values[i] = ec._SourceState_itemCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorCount":
+			out.Values[i] = ec._SourceState_errorCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastError":
+			out.Values[i] = ec._SourceState_lastError(ctx, field, obj)
+		case "updatedAt":
+			out.Values[i] = ec._SourceState_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2365,6 +4039,160 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
+	res, err := graphql.UnmarshalID(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalID(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v any) (int, error) {
+	res, err := graphql.UnmarshalInt(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalInt(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) marshalNIoC2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCᚄ(ctx context.Context, sel ast.SelectionSet, v []*graphql1.IoC) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIoC2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoC(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIoC2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoC(ctx context.Context, sel ast.SelectionSet, v *graphql1.IoC) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IoC(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIoCConnection2githubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCConnection(ctx context.Context, sel ast.SelectionSet, v graphql1.IoCConnection) graphql.Marshaler {
+	return ec._IoCConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIoCConnection2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCConnection(ctx context.Context, sel ast.SelectionSet, v *graphql1.IoCConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IoCConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSource2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSourceᚄ(ctx context.Context, sel ast.SelectionSet, v []*graphql1.Source) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSource2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSource(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSource2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSource(ctx context.Context, sel ast.SelectionSet, v *graphql1.Source) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Source(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -2373,6 +4201,52 @@ func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) 
 func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
 	_ = sel
 	res := graphql.MarshalString(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v any) (time.Time, error) {
+	res, err := graphql.UnmarshalTime(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel ast.SelectionSet, v time.Time) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalTime(v)
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -2664,6 +4538,78 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
+func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalInt(*v)
+	return res
+}
+
+func (ec *executionContext) marshalOIoC2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoC(ctx context.Context, sel ast.SelectionSet, v *graphql1.IoC) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IoC(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOIoCListOptions2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCListOptions(ctx context.Context, v any) (*graphql1.IoCListOptions, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputIoCListOptions(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOIoCSortField2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCSortField(ctx context.Context, v any) (*graphql1.IoCSortField, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(graphql1.IoCSortField)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOIoCSortField2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐIoCSortField(ctx context.Context, sel ast.SelectionSet, v *graphql1.IoCSortField) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOSortOrder2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSortOrder(ctx context.Context, v any) (*graphql1.SortOrder, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(graphql1.SortOrder)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOSortOrder2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSortOrder(ctx context.Context, sel ast.SelectionSet, v *graphql1.SortOrder) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) marshalOSourceState2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSourceState(ctx context.Context, sel ast.SelectionSet, v *graphql1.SourceState) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SourceState(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v any) (*string, error) {
 	if v == nil {
 		return nil, nil
@@ -2679,6 +4625,24 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalString(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalTime(*v)
 	return res
 }
 

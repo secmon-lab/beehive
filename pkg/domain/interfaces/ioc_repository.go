@@ -23,6 +23,8 @@ type BatchUpsertResult struct {
 type IoCRepository interface {
 	GetIoC(ctx context.Context, id string) (*model.IoC, error)
 	ListIoCsBySource(ctx context.Context, sourceID string) ([]*model.IoC, error)
+	ListAllIoCs(ctx context.Context) ([]*model.IoC, error)
+	ListIoCs(ctx context.Context, opts *model.IoCListOptions) (*model.IoCConnection, error)
 	UpsertIoC(ctx context.Context, ioc *model.IoC) error
 	// BatchUpsertIoCs upserts multiple IoCs in a single batch operation
 	// Returns the result with created/updated/unchanged counts and any error

@@ -25,6 +25,7 @@ tasks:
     cmds:
       - pnpm install --frozen-lockfile
       - pnpm run build
+      - touch dist/.gitkeep
 
   dev:frontend:
     desc: "Run frontend development server"

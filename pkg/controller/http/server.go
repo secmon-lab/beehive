@@ -1,24 +1,29 @@
 package http
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/frontend"
-	"github.com/secmon-lab/beehive/pkg/controller/graphql"
+	gqlcontroller "github.com/secmon-lab/beehive/pkg/controller/graphql"
+	"github.com/secmon-lab/beehive/pkg/utils/errutil"
 	"github.com/secmon-lab/beehive/pkg/utils/logging"
 	"github.com/secmon-lab/beehive/pkg/utils/safe"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
 type Server struct {
 	router         *chi.Mux
-	gqlResolver    *graphql.Resolver
+	gqlResolver    *gqlcontroller.Resolver
 	enableGraphiQL bool
 }
 
@@ -30,7 +35,7 @@ func WithGraphiQL(enabled bool) Options {
 	}
 }
 
-func New(gqlResolver *graphql.Resolver, opts ...Options) *Server {
+func New(gqlResolver *gqlcontroller.Resolver, opts ...Options) *Server {
 	r := chi.NewRouter()
 
 	s := &Server{
@@ -103,10 +108,28 @@ func accessLogger(next http.Handler) http.Handler {
 }
 
 // GraphQL handler
-func graphqlHandler(resolver *graphql.Resolver) http.Handler {
+func graphqlHandler(resolver *gqlcontroller.Resolver) http.Handler {
 	srv := handler.NewDefaultServer(
-		graphql.NewExecutableSchema(graphql.Config{Resolvers: resolver}),
+		gqlcontroller.NewExecutableSchema(gqlcontroller.Config{Resolvers: resolver}),
 	)
+
+	// Add error handling middleware to ensure 500 errors are logged
+	srv.SetErrorPresenter(func(ctx context.Context, err error) *gqlerror.Error {
+		// Log all GraphQL errors with full context
+		_ = errutil.Handle(ctx, err, "GraphQL error occurred")
+
+		// Return error to client
+		return graphql.DefaultErrorPresenter(ctx, err)
+	})
+
+	srv.SetRecoverFunc(func(ctx context.Context, err interface{}) error {
+		// Convert panic to error and log
+		panicErr := goerr.New("panic", goerr.V("panic", err))
+		_ = errutil.Handle(ctx, panicErr, "GraphQL panic recovered")
+
+		return goerr.New("internal server error")
+	})
+
 	return srv
 }
 

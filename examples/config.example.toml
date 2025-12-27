@@ -40,7 +40,7 @@ feed_config = { schema = "abuse_ch_urlhaus", max_items = 1000 }
 
 [sources.abuse_ch_threatfox]
 type = "feed"
-url = "https://threatfox.abuse.ch/downloads/recent/"
+url = "https://threatfox.abuse.ch/export/csv/recent/"
 tags = ["threat-intel", "hash", "malware"]
 enabled = true
 feed_config = { schema = "abuse_ch_threatfox", max_items = 500 }

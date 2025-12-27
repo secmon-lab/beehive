@@ -77,6 +77,7 @@ func (s *Service) FetchAbuseCHURLhaus(ctx context.Context, feedURL string) ([]*F
 		id := record[0]
 		dateAdded := parseDate(record[1])
 		urlValue := record[2]
+		lastOnline := parseDate(record[4])
 		threat := record[5]
 		tags := parseTags(record[6])
 
@@ -87,7 +88,7 @@ func (s *Service) FetchAbuseCHURLhaus(ctx context.Context, feedURL string) ([]*F
 			Description: threat,
 			Tags:        tags,
 			FirstSeen:   dateAdded,
-			LastSeen:    dateAdded,
+			LastSeen:    lastOnline,
 		}
 
 		entries = append(entries, entry)
@@ -135,6 +136,7 @@ func (s *Service) FetchAbuseCHThreatFox(ctx context.Context, feedURL string) ([]
 		iocTypeStr := record[3]
 		threatType := record[4]
 		malware := record[7] // malware_printable
+		lastSeen := parseDate(record[8])
 		tags := parseTags(record[11])
 
 		// Map ThreatFox IOC type to our IOC type
@@ -152,7 +154,7 @@ func (s *Service) FetchAbuseCHThreatFox(ctx context.Context, feedURL string) ([]
 			Description: description,
 			Tags:        tags,
 			FirstSeen:   firstSeen,
-			LastSeen:    firstSeen,
+			LastSeen:    lastSeen,
 		}
 
 		entries = append(entries, entry)
