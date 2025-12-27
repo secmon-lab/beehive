@@ -336,7 +336,8 @@ func (f *Firestore) UpsertIoC(ctx context.Context, ioc *model.IoC) error {
 }
 
 // BatchUpsertIoCs upserts multiple IoCs in batches
-// Firestore batch write limit is 500 operations per batch
+// Uses BulkWriter which handles batching automatically (20 writes per batch)
+// Processes in chunks to avoid loading too many documents at once with GetAll
 func (f *Firestore) BatchUpsertIoCs(ctx context.Context, iocs []*model.IoC) (*interfaces.BatchUpsertResult, error) {
 	result := &interfaces.BatchUpsertResult{}
 
@@ -344,24 +345,24 @@ func (f *Firestore) BatchUpsertIoCs(ctx context.Context, iocs []*model.IoC) (*in
 		return result, nil
 	}
 
-	const batchSize = 500
+	// Process in chunks of 1000 for GetAll to balance memory usage and number of requests
+	const chunkSize = 1000
 
-	// Process in batches of 500 (Firestore limit)
-	for i := 0; i < len(iocs); i += batchSize {
-		end := i + batchSize
+	for i := 0; i < len(iocs); i += chunkSize {
+		end := i + chunkSize
 		if end > len(iocs) {
 			end = len(iocs)
 		}
 
-		batch := iocs[i:end]
-		batchResult, err := f.writeBatch(ctx, batch)
-		result.Created += batchResult.Created
-		result.Updated += batchResult.Updated
-		result.Unchanged += batchResult.Unchanged
+		chunk := iocs[i:end]
+		chunkResult, err := f.writeBatch(ctx, chunk)
+		result.Created += chunkResult.Created
+		result.Updated += chunkResult.Updated
+		result.Unchanged += chunkResult.Unchanged
 		if err != nil {
 			return result, goerr.Wrap(err, "batch write failed",
-				goerr.V("batch_start", i),
-				goerr.V("batch_size", len(batch)),
+				goerr.V("chunk_start", i),
+				goerr.V("chunk_size", len(chunk)),
 				goerr.V("result", result))
 		}
 	}
@@ -369,23 +370,31 @@ func (f *Firestore) BatchUpsertIoCs(ctx context.Context, iocs []*model.IoC) (*in
 	return result, nil
 }
 
-// writeBatch writes a single batch of IoCs (max 500)
+// writeBatch writes a chunk of IoCs using BulkWriter
 func (f *Firestore) writeBatch(ctx context.Context, iocs []*model.IoC) (*interfaces.BatchUpsertResult, error) {
 	result := &interfaces.BatchUpsertResult{}
 	bulkWriter := f.client.BulkWriter(ctx)
 	now := time.Now()
 
-	// First, fetch existing documents to preserve FirstSeenAt
+	// First, fetch existing documents using GetAll for better performance
+	docRefs := make([]*firestore.DocumentRef, len(iocs))
+	for i, ioc := range iocs {
+		docRefs[i] = f.client.Collection(collectionIoCs).Doc(ioc.ID)
+	}
+
+	docs, err := f.client.GetAll(ctx, docRefs)
+	if err != nil {
+		return result, goerr.Wrap(err, "failed to fetch existing documents")
+	}
+
 	existingMap := make(map[string]*model.IoC)
-	for _, ioc := range iocs {
-		doc, err := f.client.Collection(collectionIoCs).Doc(ioc.ID).Get(ctx)
-		if err == nil {
+	for _, doc := range docs {
+		if doc.Exists() {
 			var existing model.IoC
 			if err := doc.DataTo(&existing); err == nil {
-				existingMap[ioc.ID] = &existing
+				existingMap[existing.ID] = &existing
 			}
 		}
-		// Ignore not found errors - new IoCs
 	}
 
 	// Prepare bulk writes
