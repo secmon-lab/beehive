@@ -155,6 +155,116 @@ func (f *Firestore) ListIoCsBySource(ctx context.Context, sourceID string) ([]*m
 	return iocs, nil
 }
 
+// ListAllIoCs lists all IoCs across all sources
+func (f *Firestore) ListAllIoCs(ctx context.Context) ([]*model.IoC, error) {
+	docs, err := f.client.Collection(collectionIoCs).
+		Documents(ctx).
+		GetAll()
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to list all IoCs")
+	}
+
+	var iocs []*model.IoC
+	for _, doc := range docs {
+		var ioc model.IoC
+		if err := doc.DataTo(&ioc); err != nil {
+			return nil, goerr.Wrap(err, "failed to decode IoC",
+				goerr.V("doc_id", doc.Ref.ID))
+		}
+		iocs = append(iocs, &ioc)
+	}
+
+	return iocs, nil
+}
+
+// ListIoCs lists IoCs with pagination and sorting options
+func (f *Firestore) ListIoCs(ctx context.Context, opts *model.IoCListOptions) (*model.IoCConnection, error) {
+	// Start with base query
+	query := f.client.Collection(collectionIoCs).Query
+
+	// Apply sorting
+	if opts != nil && opts.SortField != "" {
+		fieldPath, direction := getSortParams(opts.SortField, opts.SortOrder)
+		query = query.OrderBy(fieldPath, direction)
+	} else {
+		// Default sort by UpdatedAt descending
+		query = query.OrderBy("UpdatedAt", firestore.Desc)
+	}
+
+	// Get total count (before pagination)
+	allDocs, err := query.Documents(ctx).GetAll()
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to query IoCs")
+	}
+	total := len(allDocs)
+
+	// Apply pagination
+	offset := 0
+	limit := 20 // default
+	if opts != nil {
+		if opts.Offset > 0 {
+			offset = opts.Offset
+		}
+		if opts.Limit > 0 {
+			limit = opts.Limit
+		}
+	}
+
+	// Apply offset and limit to the slice
+	start := offset
+	end := offset + limit
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+
+	var iocs []*model.IoC
+	for i := start; i < end; i++ {
+		var ioc model.IoC
+		if err := allDocs[i].DataTo(&ioc); err != nil {
+			return nil, goerr.Wrap(err, "failed to decode IoC",
+				goerr.V("doc_id", allDocs[i].Ref.ID))
+		}
+		iocs = append(iocs, &ioc)
+	}
+
+	return &model.IoCConnection{
+		Items: iocs,
+		Total: total,
+	}, nil
+}
+
+// getSortParams converts domain sort field to Firestore field path and direction
+func getSortParams(sortField model.IoCSortField, sortOrder model.SortOrder) (string, firestore.Direction) {
+	direction := firestore.Asc
+	if sortOrder == model.SortOrderDesc {
+		direction = firestore.Desc
+	}
+
+	var fieldPath string
+	switch sortField {
+	case model.IoCSortByType:
+		fieldPath = "Type"
+	case model.IoCSortByValue:
+		fieldPath = "Value"
+	case model.IoCSortBySourceID:
+		fieldPath = "SourceID"
+	case model.IoCSortByStatus:
+		fieldPath = "Status"
+	case model.IoCSortByFirstSeenAt:
+		fieldPath = "FirstSeenAt"
+	case model.IoCSortByUpdatedAt:
+		fieldPath = "UpdatedAt"
+	default:
+		fieldPath = "UpdatedAt"
+		direction = firestore.Desc
+	}
+
+	return fieldPath, direction
+}
+
 // UpsertIoC inserts or updates an IoC
 func (f *Firestore) UpsertIoC(ctx context.Context, ioc *model.IoC) error {
 	if err := model.ValidateIoC(ioc); err != nil {
@@ -183,8 +293,11 @@ func (f *Firestore) UpsertIoC(ctx context.Context, ioc *model.IoC) error {
 			return goerr.Wrap(err, "failed to decode existing IoC",
 				goerr.V("id", ioc.ID))
 		}
-		// Only update if description or status changed
-		needsUpdate := existing.Description != ioc.Description || existing.Status != ioc.Status
+		// Check if any field changed (for feed sources, update if anything changed)
+		needsUpdate := existing.Description != ioc.Description ||
+			existing.Status != ioc.Status ||
+			existing.SourceURL != ioc.SourceURL ||
+			existing.Context != ioc.Context
 		if !needsUpdate {
 			// Skip - no changes needed
 			return nil
@@ -265,8 +378,11 @@ func (f *Firestore) writeBatch(ctx context.Context, iocs []*model.IoC) (*interfa
 		docRef := f.client.Collection(collectionIoCs).Doc(ioc.ID)
 
 		if existing, ok := existingMap[ioc.ID]; ok {
-			// Existing IoC - only update if description or status changed
-			needsUpdate := existing.Description != ioc.Description || existing.Status != ioc.Status
+			// Existing IoC - check if any field changed (for feed sources, update if anything changed)
+			needsUpdate := existing.Description != ioc.Description ||
+				existing.Status != ioc.Status ||
+				existing.SourceURL != ioc.SourceURL ||
+				existing.Context != ioc.Context
 			if !needsUpdate {
 				// Skip - no changes needed
 				result.Unchanged++

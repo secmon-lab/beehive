@@ -1,5 +1,70 @@
+scalar Time
+
+type IoC {
+  id: ID!
+  sourceID: String!
+  sourceType: String!
+  type: String!
+  value: String!
+  description: String!
+  sourceURL: String
+  context: String!
+  status: String!
+  firstSeenAt: Time!
+  updatedAt: Time!
+}
+
+type IoCConnection {
+  items: [IoC!]!
+  total: Int!
+}
+
+enum IoCSortField {
+  TYPE
+  VALUE
+  SOURCE_ID
+  STATUS
+  FIRST_SEEN_AT
+  UPDATED_AT
+}
+
+enum SortOrder {
+  ASC
+  DESC
+}
+
+input IoCListOptions {
+  offset: Int
+  limit: Int
+  sortField: IoCSortField
+  sortOrder: SortOrder
+}
+
+type Source {
+  id: ID!
+  type: String!
+  url: String!
+  tags: [String!]!
+  enabled: Boolean!
+  state: SourceState
+}
+
+type SourceState {
+  sourceID: String!
+  lastFetchedAt: Time
+  lastItemID: String
+  lastItemDate: Time
+  itemCount: Int!
+  errorCount: Int!
+  lastError: String
+  updatedAt: Time!
+}
+
 type Query {
   health: String!
+  listIoCs(options: IoCListOptions): IoCConnection!
+  getIoC(id: ID!): IoC
+  listSources: [Source!]!
 }
 
 type Mutation {
