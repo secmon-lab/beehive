@@ -10,6 +10,8 @@ import (
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
+	"github.com/secmon-lab/beehive/pkg/domain/source/feed"
+	"github.com/secmon-lab/beehive/pkg/domain/source/rss"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -66,6 +68,8 @@ type Firestore struct {
 
 var _ interfaces.IoCRepository = &Firestore{}
 var _ interfaces.SourceStateRepository = &Firestore{}
+var _ rss.RSSStateRepository = &Firestore{}
+var _ feed.FeedStateRepository = &Firestore{}
 
 func New(ctx context.Context, projectID string, opts ...Option) (*Firestore, error) {
 	var options options
@@ -476,6 +480,82 @@ func (f *Firestore) SaveState(ctx context.Context, state *model.SourceState) err
 	docRef := f.client.Collection(collectionSourceStates).Doc(state.SourceID)
 	if _, err := docRef.Set(ctx, fsState); err != nil {
 		return goerr.Wrap(err, "failed to save source state to firestore",
+			goerr.V("source_id", state.SourceID))
+	}
+
+	return nil
+}
+
+// GetRSSState retrieves RSS state by source ID
+func (f *Firestore) GetRSSState(ctx context.Context, sourceID string) (*rss.RSSState, error) {
+	doc, err := f.client.Collection(collectionSourceStates).Doc(sourceID).Get(ctx)
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, goerr.Wrap(rss.ErrRSSStateNotFound, "RSS state not found", goerr.V("source_id", sourceID))
+		}
+		return nil, goerr.Wrap(err, "failed to get RSS state from firestore",
+			goerr.V("source_id", sourceID))
+	}
+
+	var state rss.RSSState
+	if err := doc.DataTo(&state); err != nil {
+		return nil, goerr.Wrap(err, "failed to decode RSS state",
+			goerr.V("source_id", sourceID))
+	}
+
+	return &state, nil
+}
+
+// SaveRSSState saves or updates RSS state
+func (f *Firestore) SaveRSSState(ctx context.Context, state *rss.RSSState) error {
+	if state.SourceID == "" {
+		return goerr.New("source ID cannot be empty")
+	}
+
+	// Update timestamp before saving
+	state.UpdatedAt = time.Now()
+
+	docRef := f.client.Collection(collectionSourceStates).Doc(state.SourceID)
+	if _, err := docRef.Set(ctx, state); err != nil {
+		return goerr.Wrap(err, "failed to save RSS state to firestore",
+			goerr.V("source_id", state.SourceID))
+	}
+
+	return nil
+}
+
+// GetFeedState retrieves Feed state by source ID
+func (f *Firestore) GetFeedState(ctx context.Context, sourceID string) (*feed.FeedState, error) {
+	doc, err := f.client.Collection(collectionSourceStates).Doc(sourceID).Get(ctx)
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, goerr.Wrap(feed.ErrFeedStateNotFound, "Feed state not found", goerr.V("source_id", sourceID))
+		}
+		return nil, goerr.Wrap(err, "failed to get Feed state from firestore",
+			goerr.V("source_id", sourceID))
+	}
+
+	var state feed.FeedState
+	if err := doc.DataTo(&state); err != nil {
+		return nil, goerr.Wrap(err, "failed to decode Feed state",
+			goerr.V("source_id", sourceID))
+	}
+
+	return &state, nil
+}
+
+// SaveFeedState saves or updates Feed state
+func (f *Firestore) SaveFeedState(ctx context.Context, state *feed.FeedState) error {
+	if state.SourceID == "" {
+		return goerr.New("source ID cannot be empty")
+	}
+
+	// Update timestamp before saving
+	state.UpdatedAt = time.Now()
+
+	docRef := f.client.Collection(collectionSourceStates).Doc(state.SourceID)
+	if _, err := docRef.Set(ctx, state); err != nil {
+		return goerr.Wrap(err, "failed to save Feed state to firestore",
 			goerr.V("source_id", state.SourceID))
 	}
 
