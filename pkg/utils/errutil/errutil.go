@@ -22,7 +22,7 @@ func Handle(ctx context.Context, err error, msg string) {
 		logger.Error(msg,
 			"error", goErr.Error(),
 			"values", goErr.Values(),
-			"stacks", goErr.Stacks())
+			"stacks", goErr.StackTrace())
 	} else {
 		// Standard error
 		logger.Error(msg, "error", err.Error())
