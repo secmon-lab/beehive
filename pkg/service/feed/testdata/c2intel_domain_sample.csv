@@ -1,0 +1,11 @@
+#domain,ioc
+malicious1.example.com,Possible Cobalt Strike C2 Domain
+malicious2.example.org,Possible Cobalt Strike C2 Domain
+evil3.test.local,Possible Cobalt Strike C2 Domain
+bad4.example.net,Possible Cobalt Strike C2 Domain
+threat5.example.com,Possible Cobalt Strike C2 Domain
+dangerous6.example.org,Possible Cobalt Strike C2 Domain
+suspect7.test.local,Possible Cobalt Strike C2 Domain
+malware8.example.net,Possible Cobalt Strike C2 Domain
+phishing9.example.com,Possible Cobalt Strike C2 Domain
+attack10.example.org,Possible Cobalt Strike C2 Domain

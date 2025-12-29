@@ -53,38 +53,31 @@ func TestNewFeedSchema(t *testing.T) {
 }
 
 func TestFeedSchemaDefaultURL(t *testing.T) {
-	tests := []struct {
-		name   string
-		schema types.FeedSchema
-		want   string
-	}{
-		{
-			name:   "URLhaus",
-			schema: types.FeedSchemaAbuseCHURLhaus,
-			want:   "https://urlhaus.abuse.ch/downloads/csv_recent/",
-		},
-		{
-			name:   "ThreatFox",
-			schema: types.FeedSchemaAbuseCHThreatFox,
-			want:   "https://threatfox.abuse.ch/export/csv/recent/",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.schema.DefaultURL()
-			gt.S(t, got).Equal(tt.want)
-		})
-	}
+	// DefaultURL() now returns empty string - actual URLs are in feed service
+	schema := types.FeedSchemaAbuseCHURLhaus
+	got := schema.DefaultURL()
+	gt.S(t, got).Equal("")
 }
 
 func TestAllFeedSchemas(t *testing.T) {
 	schemas := types.AllFeedSchemas()
-	gt.A(t, schemas).Length(2)
-	gt.A(t, schemas).At(0, func(t testing.TB, v types.FeedSchema) {
-		gt.V(t, v).Equal(types.FeedSchemaAbuseCHURLhaus)
-	})
-	gt.A(t, schemas).At(1, func(t testing.TB, v types.FeedSchema) {
-		gt.V(t, v).Equal(types.FeedSchemaAbuseCHThreatFox)
-	})
+	// Verify we have all 47 feed schemas registered
+	gt.A(t, schemas).Length(47).Describe("should have all 47 feed schemas")
+
+	// Verify some key schemas are present
+	var hasURLhaus, hasMontysecurityAll, hasThreatViewIPHigh bool
+	for _, s := range schemas {
+		switch s {
+		case types.FeedSchemaAbuseCHURLhaus:
+			hasURLhaus = true
+		case types.FeedSchemaMontysecurityAll:
+			hasMontysecurityAll = true
+		case types.FeedSchemaThreatViewIPHigh:
+			hasThreatViewIPHigh = true
+		}
+	}
+
+	gt.True(t, hasURLhaus).Describe("should contain abuse_ch_urlhaus")
+	gt.True(t, hasMontysecurityAll).Describe("should contain montysecurity_all")
+	gt.True(t, hasThreatViewIPHigh).Describe("should contain threatview_ip_high")
 }

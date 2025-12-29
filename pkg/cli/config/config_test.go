@@ -153,7 +153,9 @@ func TestFeedSourceGetURL(t *testing.T) {
 			RawSchema: "abuse_ch_urlhaus",
 		}
 		gt.NoError(t, src.Validate())
-		gt.S(t, src.GetURL()).Equal("https://urlhaus.abuse.ch/downloads/csv_recent/")
+		// GetURL returns empty string when URL not specified
+		// Actual default URLs are defined in feed service
+		gt.S(t, src.GetURL()).Equal("")
 	})
 
 	t.Run("threatfox default URL", func(t *testing.T) {
@@ -161,7 +163,9 @@ func TestFeedSourceGetURL(t *testing.T) {
 			RawSchema: "abuse_ch_threatfox",
 		}
 		gt.NoError(t, src.Validate())
-		gt.S(t, src.GetURL()).Equal("https://threatfox.abuse.ch/export/csv/recent/")
+		// GetURL returns empty string when URL not specified
+		// Actual default URLs are defined in feed service
+		gt.S(t, src.GetURL()).Equal("")
 	})
 }
 
@@ -245,13 +249,13 @@ func TestConfigValidate(t *testing.T) {
 		// Check RSS source has typed values
 		rssSrc := cfg.RSS["blog"]
 		gt.A(t, rssSrc.Tags).Length(2).Describe("RSS tags should be populated")
-		gt.V(t, rssSrc.Tags[0]).Equal("test").Describe("first RSS tag")
-		gt.V(t, rssSrc.Tags[1]).Equal("vendor").Describe("second RSS tag")
+		gt.S(t, rssSrc.Tags[0].String()).Equal("test").Describe("first RSS tag")
+		gt.S(t, rssSrc.Tags[1].String()).Equal("vendor").Describe("second RSS tag")
 
 		// Check Feed source has typed values
 		feedSrc := cfg.Feed["urlhaus"]
-		gt.V(t, feedSrc.Schema).Equal("abuse_ch_urlhaus").Describe("Feed schema should be populated")
+		gt.S(t, feedSrc.Schema.String()).Equal("abuse_ch_urlhaus").Describe("Feed schema should be populated")
 		gt.A(t, feedSrc.Tags).Length(1).Describe("Feed tags should be populated")
-		gt.V(t, feedSrc.Tags[0]).Equal("threat-intel").Describe("Feed tag")
+		gt.S(t, feedSrc.Tags[0].String()).Equal("threat-intel").Describe("Feed tag")
 	})
 }

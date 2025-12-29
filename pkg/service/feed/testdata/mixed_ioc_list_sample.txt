@@ -1,0 +1,14 @@
+# Sample mixed IoC list for testing
+# Format: One IoC per line (IP, Domain, URL, Hash)
+# Comments starting with # are ignored
+
+192.0.2.1
+198.51.100.10
+example.com
+test.example.org
+http://malicious.example.com/path
+https://evil.example.net/payload.exe
+002b1550152a4ca76ff1b2497a6c016e
+00b419467d5dd2bad473b2a57415d46d
+0140774dfa8adbe8115c87f2c7fcf549
+da39a3ee5e6b4b0d3255bfef95601890afd80709

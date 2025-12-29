@@ -117,14 +117,7 @@ func (f *FeedSource) Validate() error {
 			return goerr.Wrap(err, "invalid url", goerr.V("url", f.URL))
 		}
 	}
-
-	// If URL not specified, ensure schema has a default URL
-	if f.URL == "" {
-		defaultURL := feedSchema.DefaultURL()
-		if defaultURL == "" {
-			return goerr.New("no default URL for feed schema", goerr.V("schema", f.RawSchema))
-		}
-	}
+	// URL is optional - default URLs are defined in feed service
 
 	// Tags validation and conversion
 	tags, err := types.NewTags(f.RawTags)

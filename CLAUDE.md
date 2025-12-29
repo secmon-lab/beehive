@@ -243,6 +243,37 @@ Test files follow Go conventions (`*_test.go`). The codebase includes:
 - Unit tests for individual components
 - Integration tests with repository implementations
 - Repository tests use both memory and firestore backends for verification
+- E2E tests for threat intelligence feeds (controlled by `TEST_E2E` environment variable)
+
+### Running Tests
+
+```bash
+# Run all unit tests
+zenv go test ./...
+
+# Run E2E tests (fetches data from live threat intelligence feeds)
+TEST_E2E=1 zenv go test ./pkg/service/feed -timeout 5m
+
+# Run specific E2E test
+TEST_E2E=1 zenv go test ./pkg/service/feed -run TestService_FetchAbuseCHURLhaus_E2E -v
+```
+
+### E2E Test Pattern
+
+E2E tests check the `TEST_E2E` environment variable to determine whether to run:
+
+```go
+func TestService_FetchFeed_E2E(t *testing.T) {
+    if os.Getenv("TEST_E2E") == "" {
+        t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
+    }
+    // ... actual test code
+}
+```
+
+- E2E tests fetch data from actual live feeds to verify parsers work with real data
+- Use environment variable (not CLI flag) so `go test ./...` works across all packages
+- E2E tests should verify minimal data integrity (e.g., successful fetch, basic format validation)
 
 ## Restrictions and Rules
 
@@ -309,3 +340,120 @@ Before creating or modifying tests:
 3. ✓ Are all tests for a source file in ONE test file?
 4. ✓ No standalone feature/e2e/integration test files?
 5. ✓ For repository tests: placed in `pkg/repository/*_test.go`, NOT in firestore/ or memory/ subdirectories?
+
+### Feed Implementation Testing Requirements
+
+**CRITICAL**: When implementing new threat intelligence feeds in `pkg/service/feed/`, you MUST follow these testing requirements:
+
+#### E2E Tests (with `TEST_E2E` environment variable)
+- **MUST implement E2E tests** that download data from the actual feed URL
+- E2E tests verify that data is correctly fetched and parsed from the live source
+- Use environment variable check to conditionally run E2E tests:
+  ```go
+  func TestFetchXXX_E2E(t *testing.T) {
+      if os.Getenv("TEST_E2E") == "" {
+          t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
+      }
+      // Test with actual URL
+  }
+  ```
+- E2E tests should verify minimum data integrity (e.g., entry count > 0, correct format)
+
+#### Unit Tests with Embedded Test Data
+- **MUST create test data files** in `pkg/service/feed/testdata/` directory
+- Test data MUST be based on real feed data but with **dummy values**
+- **NEVER commit actual feed data** to avoid redistribution issues
+- Steps to create test data:
+  1. Download actual data from the feed URL
+  2. Understand the data format and structure
+  3. Create sample data (10-20 entries) with the same format
+  4. Replace all actual values with dummy data:
+     - IPs: Use private IP ranges (192.168.x.x, 10.x.x.x) or documentation IPs (192.0.2.x, 198.51.100.x)
+     - Domains: Use example.com, example.org, test.local, etc.
+     - Hashes: Generate random hex strings
+     - URLs: Use dummy domains with realistic paths
+  5. Save to `testdata/{feed_name}_sample.{ext}`
+- Use `//go:embed` to embed test data in tests:
+  ```go
+  //go:embed testdata/example_feed_sample.csv
+  var exampleFeedSampleData []byte
+  ```
+- Unit tests MUST verify exact expected values from the dummy data
+- Unit tests MUST use httptest server to serve embedded test data
+
+#### Example E2E Test Structure
+
+```go
+package feed_test
+
+import (
+    "context"
+    "os"
+    "testing"
+
+    "github.com/m-mizutani/gt"
+    "github.com/secmon-lab/beehive/pkg/service/feed"
+)
+
+// E2E test with actual URL
+func TestService_FetchExampleFeed_E2E(t *testing.T) {
+    if os.Getenv("TEST_E2E") == "" {
+        t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
+    }
+
+    ctx := context.Background()
+    svc := feed.New()
+    entries, err := svc.FetchExampleFeed(ctx, "")
+    gt.NoError(t, err)
+
+    // Verify minimum data integrity - feeds may be temporarily empty
+    // so we just verify successful fetch without errors
+}
+```
+
+Run E2E tests with: `TEST_E2E=1 go test ./pkg/service/feed -v`
+
+#### Example Unit Test Structure
+```go
+package feed_test
+
+import (
+    _ "embed"
+    "context"
+    "net/http"
+    "net/http/httptest"
+    "testing"
+
+    "github.com/m-mizutani/gt"
+    "github.com/secmon-lab/beehive/pkg/service/feed"
+)
+
+//go:embed testdata/example_feed_sample.txt
+var exampleFeedSampleData []byte
+
+// Unit test with embedded dummy data
+func TestService_FetchExampleFeed(t *testing.T) {
+    ctx := context.Background()
+    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+        _, _ = w.Write(exampleFeedSampleData)
+    }))
+    defer server.Close()
+
+    svc := feed.New()
+    entries, err := svc.FetchExampleFeed(ctx, server.URL)
+    gt.NoError(t, err)
+
+    // Test exact values from dummy data
+    gt.A(t, entries).Length(10).Describe("should parse all 10 entries")
+    gt.A(t, entries).At(0, func(t testing.TB, first *feed.FeedEntry) {
+        gt.V(t, first.Value).Equal("192.0.2.1").Describe("first entry IP from dummy data")
+    })
+}
+```
+
+#### Rationale
+- **Real data testing**: Ensures parser works with actual feed formats
+- **Dummy data in repo**: Avoids legal/licensing issues with redistributing threat intelligence data
+- **E2E tests**: Validates that feeds are still accessible and haven't changed format
+- **Exact value testing**: Catches parser bugs and format changes immediately

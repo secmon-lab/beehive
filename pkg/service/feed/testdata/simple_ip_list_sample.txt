@@ -1,0 +1,14 @@
+# Sample IP list for testing
+# Format: One IP per line
+# Comments starting with # are ignored
+
+192.0.2.1
+192.0.2.2
+198.51.100.10
+198.51.100.20
+203.0.113.50
+2001:db8::1
+2001:db8::2
+192.0.2.100
+192.0.2.101
+192.0.2.102
