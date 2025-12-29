@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -357,13 +358,9 @@ func (m *Memory) FindNearestIoCs(ctx context.Context, queryVector []float32, lim
 	}
 
 	// Sort by similarity (descending)
-	for i := 0; i < len(candidates)-1; i++ {
-		for j := i + 1; j < len(candidates); j++ {
-			if candidates[i].similarity < candidates[j].similarity {
-				candidates[i], candidates[j] = candidates[j], candidates[i]
-			}
-		}
-	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].similarity > candidates[j].similarity
+	})
 
 	// Take top N
 	resultCount := limit
