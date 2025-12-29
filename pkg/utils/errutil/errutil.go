@@ -7,11 +7,11 @@ import (
 	"github.com/secmon-lab/beehive/pkg/utils/logging"
 )
 
-// Handle logs the error with full context and returns it
-// This ensures that 500 errors are never silently swallowed
-func Handle(ctx context.Context, err error, msg string) error {
+// Handle logs the error with full context
+// This ensures that errors are never silently swallowed
+func Handle(ctx context.Context, err error, msg string) {
 	if err == nil {
-		return nil
+		return
 	}
 
 	logger := logging.From(ctx)
@@ -27,6 +27,4 @@ func Handle(ctx context.Context, err error, msg string) error {
 		// Standard error
 		logger.Error(msg, "error", err.Error())
 	}
-
-	return err
 }

@@ -8,21 +8,29 @@ import (
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
+	"github.com/secmon-lab/beehive/pkg/domain/source/feed"
+	"github.com/secmon-lab/beehive/pkg/domain/source/rss"
 )
 
 type Memory struct {
 	iocs         map[string]*model.IoC         // key: IoC ID
 	sourceStates map[string]*model.SourceState // key: Source ID
+	rssStates    map[string]*rss.RSSState      // key: Source ID
+	feedStates   map[string]*feed.FeedState    // key: Source ID
 	mu           sync.RWMutex
 }
 
 var _ interfaces.IoCRepository = &Memory{}
 var _ interfaces.SourceStateRepository = &Memory{}
+var _ rss.RSSStateRepository = &Memory{}
+var _ feed.FeedStateRepository = &Memory{}
 
 func New() *Memory {
 	return &Memory{
 		iocs:         make(map[string]*model.IoC),
 		sourceStates: make(map[string]*model.SourceState),
+		rssStates:    make(map[string]*rss.RSSState),
+		feedStates:   make(map[string]*feed.FeedState),
 	}
 }
 
@@ -237,6 +245,72 @@ func (m *Memory) SaveState(ctx context.Context, state *model.SourceState) error 
 	// Store a copy to prevent external modification
 	stateCopy := *state
 	m.sourceStates[state.SourceID] = &stateCopy
+
+	return nil
+}
+
+// GetRSSState retrieves RSS state by source ID
+func (m *Memory) GetRSSState(ctx context.Context, sourceID string) (*rss.RSSState, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	state, ok := m.rssStates[sourceID]
+	if !ok {
+		return nil, rss.ErrRSSStateNotFound
+	}
+
+	// Return a copy to prevent external modification
+	stateCopy := *state
+	return &stateCopy, nil
+}
+
+// SaveRSSState saves or updates RSS state
+func (m *Memory) SaveRSSState(ctx context.Context, state *rss.RSSState) error {
+	if state.SourceID == "" {
+		return goerr.New("source ID cannot be empty")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	state.UpdatedAt = time.Now()
+
+	// Store a copy to prevent external modification
+	stateCopy := *state
+	m.rssStates[state.SourceID] = &stateCopy
+
+	return nil
+}
+
+// GetFeedState retrieves Feed state by source ID
+func (m *Memory) GetFeedState(ctx context.Context, sourceID string) (*feed.FeedState, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	state, ok := m.feedStates[sourceID]
+	if !ok {
+		return nil, feed.ErrFeedStateNotFound
+	}
+
+	// Return a copy to prevent external modification
+	stateCopy := *state
+	return &stateCopy, nil
+}
+
+// SaveFeedState saves or updates Feed state
+func (m *Memory) SaveFeedState(ctx context.Context, state *feed.FeedState) error {
+	if state.SourceID == "" {
+		return goerr.New("source ID cannot be empty")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	state.UpdatedAt = time.Now()
+
+	// Store a copy to prevent external modification
+	stateCopy := *state
+	m.feedStates[state.SourceID] = &stateCopy
 
 	return nil
 }

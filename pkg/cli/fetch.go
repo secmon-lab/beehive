@@ -9,7 +9,8 @@ import (
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/cli/config"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
-	"github.com/secmon-lab/beehive/pkg/domain/model"
+	"github.com/secmon-lab/beehive/pkg/domain/source/feed"
+	"github.com/secmon-lab/beehive/pkg/domain/source/rss"
 	firestoreRepo "github.com/secmon-lab/beehive/pkg/repository/firestore"
 	"github.com/secmon-lab/beehive/pkg/repository/memory"
 	"github.com/secmon-lab/beehive/pkg/usecase"
@@ -33,7 +34,7 @@ func cmdFetch() *cli.Command {
 			&cli.StringFlag{
 				Name:        "config",
 				Aliases:     []string{"c"},
-				Usage:       "Path to sources configuration file",
+				Usage:       "Path to configuration file",
 				Value:       "config/config.toml",
 				Destination: &configPath,
 				Sources:     cli.EnvVars("BEEHIVE_CONFIG"),
@@ -62,22 +63,26 @@ func cmdFetch() *cli.Command {
 
 			logger.Info("loading configuration", "path", cfgPath)
 
-			sources, err := config.LoadSources(cfgPath)
+			cfg, err := config.LoadConfig(cfgPath)
 			if err != nil {
-				return goerr.Wrap(err, "failed to load sources config")
+				return goerr.Wrap(err, "failed to load config")
 			}
 
-			logger.Info("loaded sources", "count", len(sources.Sources))
+			logger.Info("loaded configuration",
+				"rss_sources", len(cfg.RSS),
+				"feed_sources", len(cfg.Feed))
 
 			// Initialize repository
-			var iocRepo interfaces.IoCRepository
-			var stateRepo interfaces.SourceStateRepository
+			var repo interface {
+				interfaces.IoCRepository
+				interfaces.SourceStateRepository
+				rss.RSSStateRepository
+				feed.FeedStateRepository
+			}
 
 			if dryRun {
 				// Use in-memory storage for dry-run
-				memRepo := memory.New()
-				iocRepo = memRepo
-				stateRepo = memRepo
+				repo = memory.New()
 				logger.Info("using in-memory storage (dry-run mode)")
 			} else {
 				// Use Firestore for production
@@ -102,8 +107,7 @@ func cmdFetch() *cli.Command {
 					}
 				}()
 
-				iocRepo = fsRepo
-				stateRepo = fsRepo
+				repo = fsRepo
 				logger.Info("using Firestore storage",
 					"project_id", firestoreCfg.ProjectID,
 					"database_id", firestoreCfg.DatabaseID)
@@ -117,22 +121,25 @@ func cmdFetch() *cli.Command {
 
 			logger.Info("initialized LLM client", "provider", llmCfg.Provider, "model", llmCfg.Model)
 
-			// Create use case
-			uc := usecase.NewFetchUseCase(
-				iocRepo,
-				stateRepo,
-				llmClient,
-			)
+			// Create sources from configuration
+			sources := createSources(ctx, cfg, repo, repo, repo, llmClient)
+			logger.Info("created sources", "total", len(sources))
 
-			// Convert config sources to model sources
-			modelSources := convertToModelSources(sources.Sources)
+			// Filter by tags if specified
+			if len(tags) > 0 {
+				sources = filterByTags(sources, tags)
+				logger.Info("filtered sources by tags", "tags", tags, "remaining", len(sources))
+			}
+
+			if len(sources) == 0 {
+				logger.Warn("no sources to fetch")
+				return nil
+			}
 
 			// Execute fetch
-			logger.Info("starting fetch operation",
-				"tags", tags,
-				"dry_run", dryRun)
+			logger.Info("starting fetch operation", "sources", len(sources), "dry_run", dryRun)
 
-			stats, err := uc.FetchAllSources(ctx, modelSources, tags)
+			stats, err := usecase.FetchAllSources(ctx, sources)
 			if err != nil {
 				return goerr.Wrap(err, "fetch operation failed")
 			}
@@ -175,7 +182,7 @@ func findConfigFile(path string) (string, error) {
 }
 
 // printFetchResults prints the fetch results to stdout
-func printFetchResults(stats []*usecase.FetchStats) {
+func printFetchResults(stats []*interfaces.FetchStats) {
 	fmt.Println("\n=== Fetch Results ===")
 	fmt.Println()
 
@@ -184,7 +191,6 @@ func printFetchResults(stats []*usecase.FetchStats) {
 	totalCreated := 0
 	totalUpdated := 0
 	totalUnchanged := 0
-	totalGeneric := 0
 	totalErrors := 0
 
 	for _, s := range stats {
@@ -194,7 +200,6 @@ func printFetchResults(stats []*usecase.FetchStats) {
 		fmt.Printf("  IoCs Created:    %d\n", s.IoCsCreated)
 		fmt.Printf("  IoCs Updated:    %d\n", s.IoCsUpdated)
 		fmt.Printf("  IoCs Unchanged:  %d\n", s.IoCsUnchanged)
-		fmt.Printf("  IoCs Generic:    %d\n", s.IoCsGeneric)
 		fmt.Printf("  Errors:          %d\n", s.Errors)
 		fmt.Printf("  Processing Time: %v\n", s.ProcessingTime)
 		fmt.Println()
@@ -204,7 +209,6 @@ func printFetchResults(stats []*usecase.FetchStats) {
 		totalCreated += s.IoCsCreated
 		totalUpdated += s.IoCsUpdated
 		totalUnchanged += s.IoCsUnchanged
-		totalGeneric += s.IoCsGeneric
 		totalErrors += s.Errors
 	}
 
@@ -215,38 +219,6 @@ func printFetchResults(stats []*usecase.FetchStats) {
 	fmt.Printf("Total IoCs Created:      %d\n", totalCreated)
 	fmt.Printf("Total IoCs Updated:      %d\n", totalUpdated)
 	fmt.Printf("Total IoCs Unchanged:    %d\n", totalUnchanged)
-	fmt.Printf("Total IoCs Generic:      %d\n", totalGeneric)
 	fmt.Printf("Total Errors:            %d\n", totalErrors)
 	fmt.Println()
-}
-
-// convertToModelSources converts config sources to model sources
-func convertToModelSources(configSources map[string]config.SourceConfig) map[string]model.Source {
-	result := make(map[string]model.Source)
-
-	for id, cfg := range configSources {
-		source := model.Source{
-			Type:    model.SourceType(cfg.Type),
-			URL:     cfg.URL,
-			Tags:    cfg.Tags,
-			Enabled: cfg.Enabled,
-		}
-
-		if cfg.RSSConfig != nil {
-			source.RSSConfig = &model.RSSConfig{
-				MaxArticles: cfg.RSSConfig.MaxArticles,
-			}
-		}
-
-		if cfg.FeedConfig != nil {
-			source.FeedConfig = &model.FeedConfig{
-				Schema:   cfg.FeedConfig.Schema,
-				MaxItems: cfg.FeedConfig.MaxItems,
-			}
-		}
-
-		result[id] = source
-	}
-
-	return result
 }

@@ -1,54 +1,53 @@
-# Example configuration file for Beehive IoC sources
-# Copy this file to sources.toml and customize for your environment
+# Beehive Configuration File (New Format)
+# This file demonstrates the new RSS/Feed separated configuration
 
-# RSS sources - Security blogs and vendor blogs
-[sources.google_security_blog]
-type = "rss"
+# RSS Sources - Security blogs and vendor blogs
+# RSS sources use LLM to extract IoCs from unstructured blog content
+[rss.google_security_blog]
 url = "https://security.googleblog.com/feeds/posts/default"
 tags = ["vendor", "google"]
-enabled = true
-rss_config = { max_articles = 10 }
+max_articles = 10
+# disabled = false  # Optional: set to true to disable this source
 
-[sources.microsoft_security_blog]
-type = "rss"
+[rss.microsoft_security_blog]
 url = "https://www.microsoft.com/security/blog/feed/"
 tags = ["vendor", "microsoft"]
-enabled = true
-rss_config = { max_articles = 20 }
+max_articles = 20
 
-[sources.crowdstrike_blog]
-type = "rss"
+[rss.crowdstrike_blog]
 url = "https://www.crowdstrike.com/blog/feed/"
 tags = ["vendor", "crowdstrike"]
-enabled = false
-rss_config = { max_articles = 15 }
-
-[sources.talos_blog]
-type = "rss"
-url = "https://blog.talosintelligence.com/rss/"
-tags = ["vendor", "cisco", "talos"]
-enabled = false
-rss_config = { max_articles = 10 }
+disabled = true  # This source is disabled
 
 # Threat Intelligence Feeds
-[sources.abuse_ch_urlhaus]
-type = "feed"
-url = "https://urlhaus.abuse.ch/downloads/csv_recent/"
+# Feed sources consume structured threat data directly (no LLM extraction needed)
+# The 'schema' field determines the data format, parser, and default URL
+
+[feed.urlhaus]
+schema = "abuse_ch_urlhaus"  # Required: determines parser and default URL
 tags = ["threat-intel", "url"]
-enabled = true
-feed_config = { schema = "abuse_ch_urlhaus", max_items = 1000 }
+max_items = 1000
+# url = ""  # Optional: override default URL (https://urlhaus.abuse.ch/downloads/csv_recent/)
 
-[sources.abuse_ch_threatfox]
-type = "feed"
-url = "https://threatfox.abuse.ch/export/csv/recent/"
+[feed.threatfox]
+schema = "abuse_ch_threatfox"  # Default URL: https://threatfox.abuse.ch/export/csv/recent/
 tags = ["threat-intel", "hash", "malware"]
-enabled = true
-feed_config = { schema = "abuse_ch_threatfox", max_items = 500 }
+# max_items = 0  # Optional: 0 means unlimited (default)
 
-# Additional example sources (disabled by default)
-[sources.sans_isc]
-type = "rss"
-url = "https://isc.sans.edu/rssfeed.xml"
-tags = ["community", "sans"]
-enabled = false
-rss_config = { max_articles = 10 }
+# Example: Using a custom mirror URL
+[feed.urlhaus_mirror]
+schema = "abuse_ch_urlhaus"
+url = "https://mirror.example.com/urlhaus.csv"  # Override default URL
+tags = ["threat-intel", "mirror"]
+disabled = true
+
+# Tag Validation Rules:
+# - Must start and end with alphanumeric [a-zA-Z0-9]
+# - Can contain alphanumeric, hyphens, and underscores [a-zA-Z0-9-_] in the middle
+# - Maximum 63 characters
+# - Valid examples: "test", "threat-intel", "test_tag", "My_Tag_123", "a", "X"
+# - Invalid examples: "-test", "test-", "_test", "test_", ""
+
+# Available Feed Schemas:
+# - abuse_ch_urlhaus: URLhaus malicious URL feed
+# - abuse_ch_threatfox: ThreatFox IoC feed (hashes, IPs, domains)
