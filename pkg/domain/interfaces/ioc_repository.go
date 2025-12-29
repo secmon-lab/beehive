@@ -29,4 +29,7 @@ type IoCRepository interface {
 	// BatchUpsertIoCs upserts multiple IoCs in a single batch operation
 	// Returns the result with created/updated/unchanged counts and any error
 	BatchUpsertIoCs(ctx context.Context, iocs []*model.IoC) (*BatchUpsertResult, error)
+	// FindNearestIoCs performs vector similarity search
+	// Returns IoCs ordered by similarity to the query vector (most similar first)
+	FindNearestIoCs(ctx context.Context, queryVector []float32, limit int) ([]*model.IoC, error)
 }

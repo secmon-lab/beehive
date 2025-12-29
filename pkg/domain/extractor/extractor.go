@@ -69,16 +69,41 @@ type extractionResponse struct {
 	IoCs []*ExtractedIoC `json:"iocs"`
 }
 
+// Vectorizer interface for generating embeddings
+type Vectorizer interface {
+	Vectorize(value string) ([]float32, error)
+	Dimension() int
+}
+
 // Extractor provides IoC extraction and processing functionality
 type Extractor struct {
-	llmClient gollem.LLMClient
+	llmClient  gollem.LLMClient
+	vectorizer Vectorizer
+	useNGram   bool
+}
+
+// Option configures Extractor
+type Option func(*Extractor)
+
+// WithNGramVectorizer enables n-gram vectorizer instead of LLM embedding
+func WithNGramVectorizer(v Vectorizer) Option {
+	return func(e *Extractor) {
+		e.vectorizer = v
+		e.useNGram = true
+	}
 }
 
 // New creates a new IoC extractor
-func New(llmClient gollem.LLMClient) *Extractor {
-	return &Extractor{
+func New(llmClient gollem.LLMClient, opts ...Option) *Extractor {
+	e := &Extractor{
 		llmClient: llmClient,
 	}
+
+	for _, opt := range opts {
+		opt(e)
+	}
+
+	return e
 }
 
 // ExtractFromArticle extracts IoCs from a blog article using LLM
@@ -135,7 +160,14 @@ func (e *Extractor) ExtractFromArticle(ctx context.Context, title, content strin
 }
 
 // GenerateEmbedding generates a vector embedding for the given text
+// text can be an IoC value OR a search query
 func (e *Extractor) GenerateEmbedding(ctx context.Context, text string) ([]float32, error) {
+	// Use n-gram vectorizer if enabled
+	if e.useNGram && e.vectorizer != nil {
+		return e.vectorizer.Vectorize(text)
+	}
+
+	// Fallback to LLM embedding
 	if e.llmClient == nil {
 		return nil, goerr.New("LLM client not configured")
 	}

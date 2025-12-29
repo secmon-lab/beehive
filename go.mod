@@ -10,6 +10,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/m-mizutani/clog v0.1.0
+	github.com/m-mizutani/fireconf v0.1.1
 	github.com/m-mizutani/goerr/v2 v2.0.0
 	github.com/m-mizutani/gollem v0.17.3
 	github.com/m-mizutani/gt v0.1.2
@@ -128,7 +129,7 @@ require (
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.36.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0 // indirect
 	go.opentelemetry.io/otel v1.38.0 // indirect
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
@@ -148,7 +149,7 @@ require (
 	golang.org/x/tools v0.40.0 // indirect
 	google.golang.org/api v0.256.0 // indirect
 	google.golang.org/genai v1.28.0 // indirect
-	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
+	google.golang.org/genproto v0.0.0-20250728155136-f173205681a0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250818200422-3122310a409c // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251103181224-f26f9409b101 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
