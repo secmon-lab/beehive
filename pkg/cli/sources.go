@@ -1,15 +1,20 @@
 package cli
 
 import (
+	"context"
+
+	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/gollem"
 	"github.com/secmon-lab/beehive/pkg/cli/config"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/domain/source/feed"
 	"github.com/secmon-lab/beehive/pkg/domain/source/rss"
+	"github.com/secmon-lab/beehive/pkg/utils/errutil"
 )
 
 // createSources creates Source instances from configuration
 func createSources(
+	ctx context.Context,
 	cfg *config.Config,
 	iocRepo interfaces.IoCRepository,
 	rssStateRepo rss.RSSStateRepository,
@@ -25,8 +30,7 @@ func createSources(
 		}
 		src, err := rss.New(id, rssCfg, iocRepo, rssStateRepo, llmClient)
 		if err != nil {
-			// Log error and skip this source
-			// In production, you might want to collect and report errors
+			errutil.Handle(ctx, goerr.Wrap(err, "failed to create RSS source", goerr.V("source_id", id)), "skipping RSS source")
 			continue
 		}
 		sources = append(sources, src)
@@ -39,7 +43,7 @@ func createSources(
 		}
 		src, err := feed.New(id, feedCfg, iocRepo, feedStateRepo, llmClient)
 		if err != nil {
-			// Log error and skip this source
+			errutil.Handle(ctx, goerr.Wrap(err, "failed to create Feed source", goerr.V("source_id", id)), "skipping Feed source")
 			continue
 		}
 		sources = append(sources, src)
