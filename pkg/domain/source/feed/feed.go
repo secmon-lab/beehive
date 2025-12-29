@@ -39,29 +39,18 @@ func New(
 	stateRepo FeedStateRepository,
 	llmClient gollem.LLMClient,
 ) (*FeedSource, error) {
-	// Validate and convert config.Schema to types.FeedSchema
-	feedSchema, err := types.NewFeedSchema(cfg.Schema)
-	if err != nil {
-		return nil, goerr.Wrap(err, "invalid feed schema", goerr.V("id", id))
-	}
-
-	// Validate and convert config.Tags to types.Tags
-	tags, err := types.NewTags(cfg.Tags)
-	if err != nil {
-		return nil, goerr.Wrap(err, "invalid tags", goerr.V("id", id))
-	}
-
+	// Config should already be validated, so Schema and Tags should be populated
 	// Get effective URL (explicit or default from schema)
 	url := cfg.GetURL()
 	if url == "" {
-		return nil, goerr.New("no URL available for feed", goerr.V("id", id), goerr.V("schema", cfg.Schema))
+		return nil, goerr.New("no URL available for feed", goerr.V("id", id), goerr.V("schema", cfg.Schema.String()))
 	}
 
 	return &FeedSource{
 		id:          id,
-		feedSchema:  feedSchema,
+		feedSchema:  cfg.Schema,
 		url:         url,
-		tags:        tags,
+		tags:        cfg.Tags,
 		maxItems:    cfg.MaxItems,
 		iocRepo:     iocRepo,
 		stateRepo:   stateRepo,

@@ -39,16 +39,11 @@ func New(
 	stateRepo RSSStateRepository,
 	llmClient gollem.LLMClient,
 ) (*RSSSource, error) {
-	// Validate and convert config.Tags to types.Tags
-	tags, err := types.NewTags(cfg.Tags)
-	if err != nil {
-		return nil, goerr.Wrap(err, "invalid tags", goerr.V("source_id", id))
-	}
-
+	// Config should already be validated, so Tags should be populated
 	return &RSSSource{
 		id:          id,
 		url:         cfg.URL,
-		tags:        tags,
+		tags:        cfg.Tags,
 		maxArticles: cfg.MaxArticles,
 		iocRepo:     iocRepo,
 		stateRepo:   stateRepo,

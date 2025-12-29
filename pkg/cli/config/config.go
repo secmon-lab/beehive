@@ -18,19 +18,22 @@ type Config struct {
 
 // RSSSource represents RSS-specific configuration
 type RSSSource struct {
-	URL         string   `toml:"url"`
-	Tags        []string `toml:"tags,omitempty"`
-	Disabled    bool     `toml:"disabled,omitempty"`
-	MaxArticles int      `toml:"max_articles,omitempty"`
+	URL         string     `toml:"url"`
+	Tags        types.Tags `toml:"-"` // Not directly unmarshaled
+	RawTags     []string   `toml:"tags,omitempty"`
+	Disabled    bool       `toml:"disabled,omitempty"`
+	MaxArticles int        `toml:"max_articles,omitempty"`
 }
 
 // FeedSource represents feed-specific configuration
 type FeedSource struct {
-	Schema   string   `toml:"schema"`
-	URL      string   `toml:"url,omitempty"` // Optional, defaults to schema's default URL
-	Tags     []string `toml:"tags,omitempty"`
-	Disabled bool     `toml:"disabled,omitempty"`
-	MaxItems int      `toml:"max_items,omitempty"`
+	Schema    types.FeedSchema `toml:"-"` // Not directly unmarshaled
+	RawSchema string           `toml:"schema"`
+	URL       string           `toml:"url,omitempty"` // Optional, defaults to schema's default URL
+	Tags      types.Tags       `toml:"-"`             // Not directly unmarshaled
+	RawTags   []string         `toml:"tags,omitempty"`
+	Disabled  bool             `toml:"disabled,omitempty"`
+	MaxItems  int              `toml:"max_items,omitempty"`
 }
 
 // Validate validates the entire configuration
@@ -63,7 +66,7 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// Validate validates RSS source configuration
+// Validate validates RSS source configuration and converts raw values to typed values
 func (r *RSSSource) Validate() error {
 	// URL required
 	if r.URL == "" {
@@ -75,10 +78,12 @@ func (r *RSSSource) Validate() error {
 		return goerr.Wrap(err, "invalid url", goerr.V("url", r.URL))
 	}
 
-	// Tags validation
-	if _, err := types.NewTags(r.Tags); err != nil {
+	// Tags validation and conversion
+	tags, err := types.NewTags(r.RawTags)
+	if err != nil {
 		return goerr.Wrap(err, "invalid tags")
 	}
+	r.Tags = tags
 
 	// MaxArticles must be non-negative
 	if r.MaxArticles < 0 {
@@ -88,18 +93,19 @@ func (r *RSSSource) Validate() error {
 	return nil
 }
 
-// Validate validates feed source configuration
+// Validate validates feed source configuration and converts raw values to typed values
 func (f *FeedSource) Validate() error {
 	// Schema required
-	if f.Schema == "" {
+	if f.RawSchema == "" {
 		return goerr.New("schema is required")
 	}
 
-	// Schema must be valid
-	feedSchema, err := types.NewFeedSchema(f.Schema)
+	// Schema must be valid and convert
+	feedSchema, err := types.NewFeedSchema(f.RawSchema)
 	if err != nil {
 		return err
 	}
+	f.Schema = feedSchema
 
 	// URL validation (if specified)
 	if f.URL != "" {
@@ -112,14 +118,16 @@ func (f *FeedSource) Validate() error {
 	if f.URL == "" {
 		defaultURL := feedSchema.DefaultURL()
 		if defaultURL == "" {
-			return goerr.New("no default URL for feed schema", goerr.V("schema", f.Schema))
+			return goerr.New("no default URL for feed schema", goerr.V("schema", f.RawSchema))
 		}
 	}
 
-	// Tags validation
-	if _, err := types.NewTags(f.Tags); err != nil {
+	// Tags validation and conversion
+	tags, err := types.NewTags(f.RawTags)
+	if err != nil {
 		return goerr.Wrap(err, "invalid tags")
 	}
+	f.Tags = tags
 
 	// MaxItems must be non-negative
 	if f.MaxItems < 0 {
@@ -130,13 +138,13 @@ func (f *FeedSource) Validate() error {
 }
 
 // GetURL returns the effective URL (explicit or default)
+// This method assumes the config has been validated.
 func (f *FeedSource) GetURL() string {
 	if f.URL != "" {
 		return f.URL
 	}
 
-	feedSchema, _ := types.NewFeedSchema(f.Schema)
-	return feedSchema.DefaultURL()
+	return f.Schema.DefaultURL()
 }
 
 // LoadConfig loads configuration from a TOML file
