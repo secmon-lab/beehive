@@ -49,10 +49,10 @@ Feeds are organized into the following categories:
 #### ThreatFox
 
 - **Schema**: `abuse_ch_threatfox`
-- **Default URL**: `https://threatfox.abuse.ch/downloads/hostfile/`
-- **IoC Types**: Domain, IPv4
+- **Default URL**: `https://threatfox.abuse.ch/export/csv/recent/`
+- **IoC Types**: Domain, IPv4, IPv6, URL, MD5, SHA1, SHA256
 - **Description**: Indicators of Compromise (IOCs) shared by the community
-- **Format**: Hosts file format
+- **Format**: CSV (first_seen_utc, ioc_id, ioc_value, ioc_type, threat_type, fk_malware, malware_alias, malware_printable, confidence_level, reference, tags, reporter)
 
 #### Feodotracker
 
