@@ -20,7 +20,7 @@ var (
 // Default URLs for Abuse.ch feeds
 const (
 	AbuseCHURLhausURL      = "https://urlhaus.abuse.ch/downloads/csv_recent/"
-	AbuseCHThreatFoxURL    = "https://threatfox.abuse.ch/downloads/hostfile/"
+	AbuseCHThreatFoxURL    = "https://threatfox.abuse.ch/export/csv/recent/"
 	AbuseCHFeodotrackerURL = "https://feodotracker.abuse.ch/downloads/ipblocklist.txt"
 	AbuseCHSSLBlacklistURL = "https://sslbl.abuse.ch/blacklist/sslblacklist.csv"
 )

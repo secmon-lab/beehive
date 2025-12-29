@@ -125,8 +125,8 @@ func (s *FeedSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) 
 	// Track which IoCs are still in the feed
 	seenIDs := make(map[string]bool)
 
-	// Accumulate IoCs for batch writing
-	var iocsToSave []*model.IoC
+	// Accumulate IoCs for batch writing (use map to deduplicate)
+	iocsToSaveMap := make(map[string]*model.IoC)
 
 	// Process each feed entry
 	for _, entry := range entries {
@@ -166,8 +166,15 @@ func (s *FeedSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) 
 			copy(ioc.Embedding, embedding)
 		}
 
-		iocsToSave = append(iocsToSave, ioc)
+		// Store in map to deduplicate (last occurrence wins)
+		iocsToSaveMap[ioc.ID] = ioc
 		stats.IoCsExtracted++
+	}
+
+	// Convert map to slice for batch save
+	iocsToSave := make([]*model.IoC, 0, len(iocsToSaveMap))
+	for _, ioc := range iocsToSaveMap {
+		iocsToSave = append(iocsToSave, ioc)
 	}
 
 	// Batch save all active IoCs
