@@ -50,6 +50,8 @@ func (c *Config) Validate() error {
 		if err := src.Validate(); err != nil {
 			return goerr.Wrap(err, "invalid RSS source", goerr.V("id", id))
 		}
+		// Update map with validated values (range gives us a copy, not a reference)
+		c.RSS[id] = src
 	}
 
 	for id, src := range c.Feed {
@@ -61,6 +63,8 @@ func (c *Config) Validate() error {
 		if err := src.Validate(); err != nil {
 			return goerr.Wrap(err, "invalid Feed source", goerr.V("id", id))
 		}
+		// Update map with validated values (range gives us a copy, not a reference)
+		c.Feed[id] = src
 	}
 
 	return nil

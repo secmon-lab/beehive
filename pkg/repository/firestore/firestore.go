@@ -503,6 +503,9 @@ func (f *Firestore) GetRSSState(ctx context.Context, sourceID string) (*rss.RSSS
 			goerr.V("source_id", sourceID))
 	}
 
+	// SourceID is stored as document ID, not in data fields
+	state.SourceID = sourceID
+
 	return &state, nil
 }
 
@@ -540,6 +543,9 @@ func (f *Firestore) GetFeedState(ctx context.Context, sourceID string) (*feed.Fe
 		return nil, goerr.Wrap(err, "failed to decode Feed state",
 			goerr.V("source_id", sourceID))
 	}
+
+	// SourceID is stored as document ID, not in data fields
+	state.SourceID = sourceID
 
 	return &state, nil
 }

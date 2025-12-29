@@ -223,4 +223,35 @@ func TestConfigValidate(t *testing.T) {
 		}
 		gt.Error(t, cfg.Validate())
 	})
+
+	t.Run("validated values are persisted in map", func(t *testing.T) {
+		cfg := &config.Config{
+			RSS: map[string]config.RSSSource{
+				"blog": {
+					URL:     "https://example.com/feed",
+					RawTags: []string{"test", "vendor"},
+				},
+			},
+			Feed: map[string]config.FeedSource{
+				"urlhaus": {
+					RawSchema: "abuse_ch_urlhaus",
+					RawTags:   []string{"threat-intel"},
+				},
+			},
+		}
+
+		gt.NoError(t, cfg.Validate())
+
+		// Check RSS source has typed values
+		rssSrc := cfg.RSS["blog"]
+		gt.A(t, rssSrc.Tags).Length(2).Describe("RSS tags should be populated")
+		gt.V(t, rssSrc.Tags[0]).Equal("test").Describe("first RSS tag")
+		gt.V(t, rssSrc.Tags[1]).Equal("vendor").Describe("second RSS tag")
+
+		// Check Feed source has typed values
+		feedSrc := cfg.Feed["urlhaus"]
+		gt.V(t, feedSrc.Schema).Equal("abuse_ch_urlhaus").Describe("Feed schema should be populated")
+		gt.A(t, feedSrc.Tags).Length(1).Describe("Feed tags should be populated")
+		gt.V(t, feedSrc.Tags[0]).Equal("threat-intel").Describe("Feed tag")
+	})
 }
