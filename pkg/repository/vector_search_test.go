@@ -3,6 +3,7 @@ package repository_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -81,7 +82,7 @@ func TestVectorSearch(t *testing.T) {
 		gt.True(t, len(results) <= 5).Describe("should respect limit")
 
 		// First result should contain "malware"
-		gt.True(t, containsSubstring(results[0].Value, "malware")).Describef("top result should contain 'malware', got: %s", results[0].Value)
+		gt.True(t, strings.Contains(results[0].Value, "malware")).Describef("top result should contain 'malware', got: %s", results[0].Value)
 	})
 
 	t.Run("search for evil query", func(t *testing.T) {
@@ -96,7 +97,7 @@ func TestVectorSearch(t *testing.T) {
 		// Top results should be evil.com or evil.net
 		foundEvil := false
 		for i := 0; i < min(2, len(results)); i++ {
-			if containsSubstring(results[i].Value, "evil") {
+			if strings.Contains(results[i].Value, "evil") {
 				foundEvil = true
 				break
 			}
@@ -116,7 +117,7 @@ func TestVectorSearch(t *testing.T) {
 		// Count how many results are 192.168.x.x
 		count192168 := 0
 		for _, result := range results {
-			if containsSubstring(result.Value, "192.168") {
+			if strings.Contains(result.Value, "192.168") {
 				count192168++
 			}
 		}
@@ -138,10 +139,10 @@ func TestVectorSearch(t *testing.T) {
 		foundCom := false
 		foundNet := false
 		for _, result := range results {
-			if containsSubstring(result.Value, fmt.Sprintf("evil-%s.com", timestamp)) {
+			if strings.Contains(result.Value, fmt.Sprintf("evil-%s.com", timestamp)) {
 				foundCom = true
 			}
-			if containsSubstring(result.Value, fmt.Sprintf("evil-%s.net", timestamp)) {
+			if strings.Contains(result.Value, fmt.Sprintf("evil-%s.net", timestamp)) {
 				foundNet = true
 			}
 		}
@@ -164,19 +165,6 @@ func TestVectorSearch(t *testing.T) {
 		gt.NoError(t, err)
 		gt.A(t, results).Length(0).Describe("limit 0 should return empty results")
 	})
-}
-
-func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && findSubstring(s, substr)
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 func min(a, b int) int {

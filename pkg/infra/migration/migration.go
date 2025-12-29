@@ -6,6 +6,7 @@ import (
 	"github.com/m-mizutani/fireconf"
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
+	"github.com/secmon-lab/beehive/pkg/utils/safe"
 )
 
 // MigrateFirestore creates or updates Firestore indexes using fireconf
@@ -40,7 +41,7 @@ func MigrateFirestore(ctx context.Context, projectID, databaseID string) error {
 			goerr.V("project_id", projectID),
 			goerr.V("database_id", databaseID))
 	}
-	defer client.Close()
+	defer safe.Close(ctx, client)
 
 	// Apply configuration
 	if err := client.Migrate(ctx, config); err != nil {
