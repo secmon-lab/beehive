@@ -345,14 +345,14 @@ Before creating or modifying tests:
 
 **CRITICAL**: When implementing new threat intelligence feeds in `pkg/service/feed/`, you MUST follow these testing requirements:
 
-#### E2E Tests (with `-e2e` flag)
+#### E2E Tests (with `TEST_E2E` environment variable)
 - **MUST implement E2E tests** that download data from the actual feed URL
 - E2E tests verify that data is correctly fetched and parsed from the live source
-- Use build tag or environment variable check to conditionally run E2E tests:
+- Use environment variable check to conditionally run E2E tests:
   ```go
   func TestFetchXXX_E2E(t *testing.T) {
-      if os.Getenv("E2E") == "" {
-          t.Skip("E2E test skipped (set E2E=1 to run)")
+      if os.Getenv("TEST_E2E") == "" {
+          t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
       }
       // Test with actual URL
   }
@@ -381,44 +381,39 @@ Before creating or modifying tests:
 - Unit tests MUST verify exact expected values from the dummy data
 - Unit tests MUST use httptest server to serve embedded test data
 
-#### E2E Test Flag Pattern
-
-E2E tests MUST use the `-e2e` flag pattern with the `flag` package:
+#### Example E2E Test Structure
 
 ```go
 package feed_test
 
 import (
     "context"
-    "flag"
+    "os"
     "testing"
 
     "github.com/m-mizutani/gt"
     "github.com/secmon-lab/beehive/pkg/service/feed"
 )
 
-// Define the flag at package level
-var e2e = flag.Bool("e2e", false, "run E2E tests against live feeds")
-
 // E2E test with actual URL
-func TestE2E_FetchExampleFeed(t *testing.T) {
-    if !*e2e {
-        t.Skip("E2E test skipped (use -e2e flag to run)")
+func TestService_FetchExampleFeed_E2E(t *testing.T) {
+    if os.Getenv("TEST_E2E") == "" {
+        t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
     }
 
     ctx := context.Background()
     svc := feed.New()
-    entries, err := svc.FetchExampleFeed(ctx, "https://actual-feed-url.example.com/feed.txt")
+    entries, err := svc.FetchExampleFeed(ctx, "")
     gt.NoError(t, err)
 
-    // Verify minimum data integrity
-    gt.True(t, len(entries) > 0).Describe("should fetch at least one entry from live feed")
+    // Verify minimum data integrity - feeds may be temporarily empty
+    // so we just verify successful fetch without errors
 }
 ```
 
-Run E2E tests with: `go test -e2e ./pkg/service/feed -v`
+Run E2E tests with: `TEST_E2E=1 go test ./pkg/service/feed -v`
 
-#### Example Structure
+#### Example Unit Test Structure
 ```go
 package feed_test
 
