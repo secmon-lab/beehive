@@ -116,7 +116,7 @@ func graphqlHandler(resolver *gqlcontroller.Resolver) http.Handler {
 	// Add error handling middleware to ensure 500 errors are logged
 	srv.SetErrorPresenter(func(ctx context.Context, err error) *gqlerror.Error {
 		// Log all GraphQL errors with full context
-		_ = errutil.Handle(ctx, err, "GraphQL error occurred")
+		errutil.Handle(ctx, err, "GraphQL error occurred")
 
 		// Return error to client
 		return graphql.DefaultErrorPresenter(ctx, err)
@@ -125,7 +125,7 @@ func graphqlHandler(resolver *gqlcontroller.Resolver) http.Handler {
 	srv.SetRecoverFunc(func(ctx context.Context, err interface{}) error {
 		// Convert panic to error and log
 		panicErr := goerr.New("panic", goerr.V("panic", err))
-		_ = errutil.Handle(ctx, panicErr, "GraphQL panic recovered")
+		errutil.Handle(ctx, panicErr, "GraphQL panic recovered")
 
 		return goerr.New("internal server error")
 	})
