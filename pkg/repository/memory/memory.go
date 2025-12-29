@@ -107,12 +107,15 @@ func (m *Memory) ListIoCs(ctx context.Context, opts *model.IoCListOptions) (*mod
 		if offset < 0 {
 			offset = 0
 		}
-		if limit <= 0 {
-			limit = 20 // default
-		}
 
 		start := offset
-		end := offset + limit
+		var end int
+		if limit <= 0 {
+			// limit <= 0 means no limit (return all)
+			end = total
+		} else {
+			end = offset + limit
+		}
 
 		if start > total {
 			start = total
@@ -326,7 +329,7 @@ func (m *Memory) FindNearestIoCs(ctx context.Context, queryVector []float32, lim
 	}
 
 	if limit <= 0 {
-		limit = 10
+		return []*model.IoC{}, nil
 	}
 
 	m.mu.RLock()
@@ -380,6 +383,10 @@ func (m *Memory) FindNearestIoCs(ctx context.Context, queryVector []float32, lim
 
 // cosineSimilarity calculates cosine similarity between two vectors
 func cosineSimilarity(a, b []float32) float64 {
+	if len(a) != len(b) {
+		return 0
+	}
+
 	var dotProduct, normA, normB float64
 	for i := range a {
 		dotProduct += float64(a[i]) * float64(b[i])

@@ -9,6 +9,7 @@ import (
 )
 
 // cosineSimilarity calculates cosine similarity between two vectors
+// This is a test helper function
 func cosineSimilarity(a, b []float32) float64 {
 	if len(a) != len(b) {
 		return 0

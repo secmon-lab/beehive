@@ -10,6 +10,27 @@ import (
 	"github.com/secmon-lab/beehive/pkg/domain/vectorizer"
 )
 
+// cosineSimilarity calculates cosine similarity between two vectors
+// This is a test helper function
+func cosineSimilarity(a, b []float32) float64 {
+	if len(a) != len(b) {
+		return 0
+	}
+
+	var dotProduct, normA, normB float64
+	for i := range a {
+		dotProduct += float64(a[i]) * float64(b[i])
+		normA += float64(a[i]) * float64(a[i])
+		normB += float64(b[i]) * float64(b[i])
+	}
+
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+
+	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
+}
+
 func TestExtractorWithNGramVectorizer(t *testing.T) {
 	ctx := context.Background()
 
@@ -91,21 +112,4 @@ func TestExtractorVectorizerIntegration(t *testing.T) {
 		similarity := cosineSimilarity(queryEmb, iocEmb)
 		gt.True(t, similarity > 0.4).Describef("malware query should match malware domain (%.4f)", similarity)
 	})
-}
-
-func cosineSimilarity(a, b []float32) float64 {
-	var dotProduct, normA, normB float64
-	for i := range a {
-		dotProduct += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
-	}
-
-	if normA == 0 || normB == 0 {
-		return 0
-	}
-
-	// Cosine similarity = dot product / (||a|| * ||b||)
-	// Need to take sqrt of sum of squares to get magnitude
-	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
 }

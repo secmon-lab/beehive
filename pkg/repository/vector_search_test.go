@@ -159,10 +159,10 @@ func TestVectorSearch(t *testing.T) {
 		queryVec, err := v.Vectorize("malware")
 		gt.NoError(t, err)
 
-		// limit 0 should use default limit
+		// limit <= 0 should return empty results
 		results, err := repo.FindNearestIoCs(ctx, queryVec, 0)
 		gt.NoError(t, err)
-		gt.True(t, len(results) > 0).Describe("should use default limit")
+		gt.A(t, results).Length(0).Describe("limit 0 should return empty results")
 	})
 }
 

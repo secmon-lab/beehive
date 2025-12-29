@@ -577,7 +577,7 @@ func (f *Firestore) FindNearestIoCs(ctx context.Context, queryVector []float32, 
 	}
 
 	if limit <= 0 {
-		limit = 10 // Default limit
+		return []*model.IoC{}, nil
 	}
 
 	// Convert []float32 to firestore.Vector32
