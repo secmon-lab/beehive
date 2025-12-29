@@ -10,6 +10,7 @@ import (
 	"github.com/secmon-lab/beehive/pkg/domain/extractor"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
+	"github.com/secmon-lab/beehive/pkg/domain/vectorizer"
 	"github.com/secmon-lab/beehive/pkg/service/feed"
 	"github.com/secmon-lab/beehive/pkg/service/rss"
 	"github.com/secmon-lab/beehive/pkg/utils/logging"
@@ -45,13 +46,16 @@ func NewFetchUseCase(
 	stateRepo interfaces.SourceStateRepository,
 	llmClient gollem.LLMClient,
 ) *FetchUseCase {
+	// Initialize n-gram vectorizer for embedding generation
+	vec := vectorizer.NewNGramVectorizer()
+
 	return &FetchUseCase{
 		iocRepo:     iocRepo,
 		stateRepo:   stateRepo,
 		llmClient:   llmClient,
 		rssService:  rss.New(),
 		feedService: feed.New(),
-		extractor:   extractor.New(llmClient),
+		extractor:   extractor.New(llmClient, extractor.WithNGramVectorizer(vec)),
 	}
 }
 

@@ -567,3 +567,44 @@ func (f *Firestore) SaveFeedState(ctx context.Context, state *feed.FeedState) er
 
 	return nil
 }
+
+// FindNearestIoCs performs vector similarity search using Firestore Vector Search
+func (f *Firestore) FindNearestIoCs(ctx context.Context, queryVector []float32, limit int) ([]*model.IoC, error) {
+	if len(queryVector) != model.EmbeddingDimension {
+		return nil, goerr.Wrap(interfaces.ErrIoCNotFound, "invalid query vector dimension",
+			goerr.V("expected", model.EmbeddingDimension),
+			goerr.V("actual", len(queryVector)))
+	}
+
+	if limit <= 0 {
+		return []*model.IoC{}, nil
+	}
+
+	// Convert []float32 to firestore.Vector32
+	vectorValue := firestore.Vector32(queryVector)
+
+	// Perform vector search using FindNearest
+	docs, err := f.client.Collection(collectionIoCs).
+		FindNearest("Embedding", vectorValue, limit, firestore.DistanceMeasureCosine, nil).
+		Documents(ctx).
+		GetAll()
+
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to perform vector search",
+			goerr.V("limit", limit),
+			goerr.V("vector_dim", len(queryVector)))
+	}
+
+	// Parse results
+	var iocs []*model.IoC
+	for _, doc := range docs {
+		var ioc model.IoC
+		if err := doc.DataTo(&ioc); err != nil {
+			return nil, goerr.Wrap(err, "failed to decode IoC",
+				goerr.V("doc_id", doc.Ref.ID))
+		}
+		iocs = append(iocs, &ioc)
+	}
+
+	return iocs, nil
+}

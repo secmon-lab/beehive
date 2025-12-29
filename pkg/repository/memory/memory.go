@@ -2,6 +2,8 @@ package memory
 
 import (
 	"context"
+	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -106,12 +108,15 @@ func (m *Memory) ListIoCs(ctx context.Context, opts *model.IoCListOptions) (*mod
 		if offset < 0 {
 			offset = 0
 		}
-		if limit <= 0 {
-			limit = 20 // default
-		}
 
 		start := offset
-		end := offset + limit
+		var end int
+		if limit <= 0 {
+			// limit <= 0 means no limit (return all)
+			end = total
+		} else {
+			end = offset + limit
+		}
 
 		if start > total {
 			start = total
@@ -313,4 +318,82 @@ func (m *Memory) SaveFeedState(ctx context.Context, state *feed.FeedState) error
 	m.feedStates[state.SourceID] = &stateCopy
 
 	return nil
+}
+
+// FindNearestIoCs performs in-memory vector similarity search
+// This is a simple brute-force implementation for testing
+func (m *Memory) FindNearestIoCs(ctx context.Context, queryVector []float32, limit int) ([]*model.IoC, error) {
+	if len(queryVector) != model.EmbeddingDimension {
+		return nil, goerr.New("invalid query vector dimension",
+			goerr.V("expected", model.EmbeddingDimension),
+			goerr.V("actual", len(queryVector)))
+	}
+
+	if limit <= 0 {
+		return []*model.IoC{}, nil
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Calculate similarity for all IoCs
+	type iocWithSimilarity struct {
+		ioc        *model.IoC
+		similarity float64
+	}
+
+	var candidates []iocWithSimilarity
+
+	for _, ioc := range m.iocs {
+		if len(ioc.Embedding) != model.EmbeddingDimension {
+			continue // Skip IoCs without valid embeddings
+		}
+
+		// Calculate cosine similarity
+		similarity := cosineSimilarity(queryVector, ioc.Embedding)
+		candidates = append(candidates, iocWithSimilarity{
+			ioc:        ioc,
+			similarity: similarity,
+		})
+	}
+
+	// Sort by similarity (descending)
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].similarity > candidates[j].similarity
+	})
+
+	// Take top N
+	resultCount := limit
+	if resultCount > len(candidates) {
+		resultCount = len(candidates)
+	}
+
+	results := make([]*model.IoC, resultCount)
+	for i := 0; i < resultCount; i++ {
+		// Return copies to prevent external modification
+		iocCopy := *candidates[i].ioc
+		results[i] = &iocCopy
+	}
+
+	return results, nil
+}
+
+// cosineSimilarity calculates cosine similarity between two vectors
+func cosineSimilarity(a, b []float32) float64 {
+	if len(a) != len(b) {
+		return 0
+	}
+
+	var dotProduct, normA, normB float64
+	for i := range a {
+		dotProduct += float64(a[i]) * float64(b[i])
+		normA += float64(a[i]) * float64(a[i])
+		normB += float64(b[i]) * float64(b[i])
+	}
+
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+
+	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
 }

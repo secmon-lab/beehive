@@ -1,0 +1,32 @@
+# Real IoC test data
+# Format: type,value
+
+# URLs from URLhaus
+url,https://sivqen.a8riculmarb1e.ru/0dh149h0
+url,http://malware-download.com/payload.exe
+url,https://phishing-site.example.net/login
+url,https://evil-domain.com/malware.bin
+
+# Domains
+domain,malware.com
+domain,malware.net
+domain,evil.com
+domain,evil.net
+domain,phishing-site.com
+domain,google.com
+domain,gogle.com
+domain,example.com
+
+# IPv4 addresses
+ipv4,192.168.1.1
+ipv4,192.168.0.254
+ipv4,10.0.0.1
+ipv4,172.16.0.1
+
+# Hashes (MD5)
+md5,d41d8cd98f00b204e9800998ecf8427e
+md5,5d41402abc4b2a76b9719d911017c592
+
+# Hashes (SHA256)
+sha256,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+sha256,2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
