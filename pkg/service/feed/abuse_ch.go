@@ -17,6 +17,14 @@ var (
 	errParseFailed = goerr.New("failed to parse feed")
 )
 
+// Default URLs for Abuse.ch feeds
+const (
+	AbuseCHURLhausURL      = "https://urlhaus.abuse.ch/downloads/csv_recent/"
+	AbuseCHThreatFoxURL    = "https://threatfox.abuse.ch/downloads/hostfile/"
+	AbuseCHFeodotrackerURL = "https://feodotracker.abuse.ch/downloads/ipblocklist.txt"
+	AbuseCHSSLBlacklistURL = "https://sslbl.abuse.ch/blacklist/sslblacklist.csv"
+)
+
 // FeedEntry represents a single entry from a threat intelligence feed
 type FeedEntry struct {
 	ID          string // Unique identifier for this entry
@@ -45,6 +53,9 @@ func New() *Service {
 // FetchAbuseCHURLhaus fetches and parses URLhaus feed from abuse.ch
 // Format: id,dateadded,url,url_status,last_online,threat,tags,urlhaus_link,reporter
 func (s *Service) FetchAbuseCHURLhaus(ctx context.Context, feedURL string) ([]*FeedEntry, error) {
+	if feedURL == "" {
+		feedURL = AbuseCHURLhausURL
+	}
 	data, err := httpclient.FetchWithClient(ctx, s.client, feedURL)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to fetch URLhaus feed")
@@ -100,6 +111,9 @@ func (s *Service) FetchAbuseCHURLhaus(ctx context.Context, feedURL string) ([]*F
 // FetchAbuseCHThreatFox fetches and parses ThreatFox feed from abuse.ch
 // Format: first_seen_utc,ioc_id,ioc_value,ioc_type,threat_type,fk_malware,malware_alias,malware_printable,last_seen_utc,confidence_level,reference,tags,anonymous,reporter
 func (s *Service) FetchAbuseCHThreatFox(ctx context.Context, feedURL string) ([]*FeedEntry, error) {
+	if feedURL == "" {
+		feedURL = AbuseCHThreatFoxURL
+	}
 	data, err := httpclient.FetchWithClient(ctx, s.client, feedURL)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to fetch ThreatFox feed")
@@ -163,13 +177,183 @@ func (s *Service) FetchAbuseCHThreatFox(ctx context.Context, feedURL string) ([]
 	return entries, nil
 }
 
+// FetchAbuseCHFeodotracker fetches and parses Feodotracker IP blocklist from abuse.ch
+// Format: Simple TXT with one IP per line, comments starting with #
+func (s *Service) FetchAbuseCHFeodotracker(ctx context.Context, feedURL string) ([]*FeedEntry, error) {
+	if feedURL == "" {
+		feedURL = AbuseCHFeodotrackerURL
+	}
+	// Use the generic simple IP list helper with appropriate tags
+	return s.FetchSimpleIPList(ctx, feedURL, []string{"feodotracker", "botnet", "c2"})
+}
+
+// FetchAbuseCHSSLBlacklist fetches and parses SSL Certificate Blacklist from abuse.ch
+// Format: Listingdate,SHA1,Listingreason
+func (s *Service) FetchAbuseCHSSLBlacklist(ctx context.Context, feedURL string) ([]*FeedEntry, error) {
+	if feedURL == "" {
+		feedURL = AbuseCHSSLBlacklistURL
+	}
+	data, err := httpclient.FetchWithClient(ctx, s.client, feedURL)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to fetch SSL Blacklist feed")
+	}
+
+	reader := csv.NewReader(strings.NewReader(string(data)))
+	reader.Comment = '#'
+	reader.FieldsPerRecord = -1
+	reader.TrimLeadingSpace = true
+
+	var entries []*FeedEntry
+	lineNum := 0
+
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, goerr.Wrap(errParseFailed, "failed to parse CSV",
+				goerr.V("line", lineNum))
+		}
+		lineNum++
+
+		// Skip header or empty lines
+		if len(record) < 3 {
+			continue
+		}
+
+		// Parse fields
+		listingDate := parseDate(record[0])
+		sha1Hash := strings.TrimSpace(record[1])
+		reason := strings.TrimSpace(record[2])
+
+		entry := &FeedEntry{
+			ID:          sha1Hash, // Use SHA1 hash as ID
+			Type:        model.IoCTypeSHA1,
+			Value:       sha1Hash,
+			Description: reason,
+			Tags:        []string{"ssl-cert", "malware"},
+			FirstSeen:   listingDate,
+			LastSeen:    listingDate,
+		}
+
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}
+
 // FetchFeed fetches a feed based on the schema name
 func (s *Service) FetchFeed(ctx context.Context, feedURL, schema string) ([]*FeedEntry, error) {
 	switch schema {
+	// Abuse.ch feeds
 	case "abuse_ch_urlhaus":
 		return s.FetchAbuseCHURLhaus(ctx, feedURL)
 	case "abuse_ch_threatfox":
 		return s.FetchAbuseCHThreatFox(ctx, feedURL)
+	case "abuse_ch_feodotracker_ip":
+		return s.FetchAbuseCHFeodotracker(ctx, feedURL)
+	case "abuse_ch_sslbl":
+		return s.FetchAbuseCHSSLBlacklist(ctx, feedURL)
+
+	// Blocklist.de feeds
+	case "blocklist_de_all":
+		return s.FetchBlocklistDeAll(ctx, feedURL)
+	case "blocklist_de_ssh":
+		return s.FetchBlocklistDeSSH(ctx, feedURL)
+	case "blocklist_de_mail":
+		return s.FetchBlocklistDeMail(ctx, feedURL)
+	case "blocklist_de_apache":
+		return s.FetchBlocklistDeApache(ctx, feedURL)
+	case "blocklist_de_imap":
+		return s.FetchBlocklistDeIMAP(ctx, feedURL)
+	case "blocklist_de_bots":
+		return s.FetchBlocklistDeBots(ctx, feedURL)
+	case "blocklist_de_bruteforce":
+		return s.FetchBlocklistDeBruteforce(ctx, feedURL)
+	case "blocklist_de_strongips":
+		return s.FetchBlocklistDeStrongIPs(ctx, feedURL)
+	case "blocklist_de_ftp":
+		return s.FetchBlocklistDeFTP(ctx, feedURL)
+
+	// IPsum feeds
+	case "ipsum_level3":
+		return s.FetchIPsumLevel3(ctx, feedURL)
+	case "ipsum_level4":
+		return s.FetchIPsumLevel4(ctx, feedURL)
+	case "ipsum_level5":
+		return s.FetchIPsumLevel5(ctx, feedURL)
+	case "ipsum_level6":
+		return s.FetchIPsumLevel6(ctx, feedURL)
+	case "ipsum_level7":
+		return s.FetchIPsumLevel7(ctx, feedURL)
+	case "ipsum_level8":
+		return s.FetchIPsumLevel8(ctx, feedURL)
+
+	// C2IntelFeeds
+	case "c2intel_ipc2s":
+		return s.FetchC2IntelIPList(ctx, feedURL)
+	case "c2intel_domain_c2s":
+		return s.FetchC2IntelDomainList(ctx, feedURL)
+	case "c2intel_domain_c2s_url":
+		return s.FetchC2IntelDomainWithURL(ctx, feedURL)
+	case "c2intel_domain_c2s_url_ip":
+		return s.FetchC2IntelDomainWithURLWithIP(ctx, feedURL)
+
+	// Montysecurity C2 Tracker feeds
+	case "montysecurity_brute_ratel":
+		return s.FetchMontysecurityBruteRatel(ctx, feedURL)
+	case "montysecurity_cobalt_strike":
+		return s.FetchMontysecurityCobaltStrike(ctx, feedURL)
+	case "montysecurity_sliver":
+		return s.FetchMontysecuritySliver(ctx, feedURL)
+	case "montysecurity_metasploit":
+		return s.FetchMontysecurityMetasploit(ctx, feedURL)
+	case "montysecurity_havoc":
+		return s.FetchMontysecurityHavoc(ctx, feedURL)
+	case "montysecurity_burpsuite":
+		return s.FetchMontysecurityBurpSuite(ctx, feedURL)
+	case "montysecurity_deimos":
+		return s.FetchMontysecurityDeimos(ctx, feedURL)
+	case "montysecurity_gophish":
+		return s.FetchMontysecurityGoPhish(ctx, feedURL)
+	case "montysecurity_mythic":
+		return s.FetchMontysecurityMythic(ctx, feedURL)
+	case "montysecurity_nimplant":
+		return s.FetchMontysecurityNimPlant(ctx, feedURL)
+	case "montysecurity_panda":
+		return s.FetchMontysecurityPANDA(ctx, feedURL)
+	case "montysecurity_xmrig":
+		return s.FetchMontysecurityXMRig(ctx, feedURL)
+	case "montysecurity_all":
+		return s.FetchMontysecurityAll(ctx, feedURL)
+
+	// ThreatView.io feeds
+	case "threatview_ioc_tweets":
+		return s.FetchThreatViewIOCTweets(ctx, feedURL)
+	case "threatview_cobalt_strike":
+		return s.FetchThreatViewCobaltStrike(ctx, feedURL)
+	case "threatview_ip_high":
+		return s.FetchThreatViewIPHigh(ctx, feedURL)
+	case "threatview_domain_high":
+		return s.FetchThreatViewDomainHigh(ctx, feedURL)
+	case "threatview_md5":
+		return s.FetchThreatViewMD5(ctx, feedURL)
+	case "threatview_url_high":
+		return s.FetchThreatViewURLHigh(ctx, feedURL)
+	case "threatview_sha":
+		return s.FetchThreatViewSHA(ctx, feedURL)
+
+	// Other feeds
+	case "emerging_threats_compromised_ip":
+		return s.FetchEmergingThreatsCompromisedIP(ctx, feedURL)
+	case "binarydefense_banlist":
+		return s.FetchBinarydefenseBanlist(ctx, feedURL)
+	case "cinsscore_badguys":
+		return s.FetchCINSscoreBadguys(ctx, feedURL)
+	case "greensnow_blocklist":
+		return s.FetchGreenSnowBlocklist(ctx, feedURL)
+
 	default:
 		return nil, goerr.New("unsupported feed schema", goerr.V("schema", schema))
 	}

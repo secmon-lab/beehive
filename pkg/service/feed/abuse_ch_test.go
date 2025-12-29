@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -18,6 +19,12 @@ var urlhausSampleData []byte
 
 //go:embed testdata/threatfox_sample.csv
 var threatfoxSampleData []byte
+
+//go:embed testdata/feodotracker_sample.txt
+var feodotrackerSampleData []byte
+
+//go:embed testdata/sslbl_sample.csv
+var sslblSampleData []byte
 
 func TestService_FetchAbuseCHURLhaus(t *testing.T) {
 	ctx := context.Background()
@@ -299,4 +306,126 @@ func TestService_ErrorHandling(t *testing.T) {
 		_, err := svc.FetchAbuseCHURLhaus(ctx, server.URL)
 		gt.Error(t, err) // CSV parser should error on unclosed quotes
 	})
+}
+
+func TestService_FetchAbuseCHFeodotracker(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("parse Feodotracker IP blocklist", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(feodotrackerSampleData)
+		}))
+		defer server.Close()
+
+		svc := feed.New()
+		entries, err := svc.FetchAbuseCHFeodotracker(ctx, server.URL)
+		gt.NoError(t, err)
+
+		// Should parse all 10 IP addresses from sample data
+		gt.A(t, entries).Length(10).Describe("should parse all 10 IPs from Feodotracker sample")
+
+		// Verify first entry
+		gt.A(t, entries).At(0, func(t testing.TB, first *feed.FeedEntry) {
+			gt.V(t, first.Type).Equal(model.IoCTypeIPv4).Describe("first entry should be IPv4")
+			gt.V(t, first.Value).Equal("192.0.2.10").Describe("first entry IP")
+			gt.A(t, first.Tags).Length(3).Describe("should have 3 tags")
+			gt.A(t, first.Tags).Has("feodotracker").Describe("should have feodotracker tag")
+			gt.A(t, first.Tags).Has("botnet").Describe("should have botnet tag")
+			gt.A(t, first.Tags).Has("c2").Describe("should have c2 tag")
+		})
+
+		// Verify second entry
+		gt.A(t, entries).At(1, func(t testing.TB, second *feed.FeedEntry) {
+			gt.V(t, second.Value).Equal("192.0.2.20").Describe("second entry IP")
+		})
+	})
+}
+
+func TestService_FetchAbuseCHSSLBlacklist(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("parse SSL Certificate Blacklist", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(sslblSampleData)
+		}))
+		defer server.Close()
+
+		svc := feed.New()
+		entries, err := svc.FetchAbuseCHSSLBlacklist(ctx, server.URL)
+		gt.NoError(t, err)
+
+		// Should parse all 10 SSL certificate hashes from sample data
+		gt.A(t, entries).Length(10).Describe("should parse all 10 SSL certificates from sample")
+
+		// Verify first entry
+		gt.A(t, entries).At(0, func(t testing.TB, first *feed.FeedEntry) {
+			gt.V(t, first.Type).Equal(model.IoCTypeSHA1).Describe("first entry should be SHA1")
+			gt.V(t, first.Value).Equal("2be6327a2b03aed6322898941f4e6c7ca29de8e5").Describe("first entry SHA1 hash")
+			gt.V(t, first.ID).Equal("2be6327a2b03aed6322898941f4e6c7ca29de8e5").Describe("ID should be the SHA1 hash")
+			gt.S(t, first.Description).Equal("QuasarRAT C&C").Describe("first entry description")
+			gt.A(t, first.Tags).Length(2).Describe("should have 2 tags")
+			gt.A(t, first.Tags).Has("ssl-cert").Describe("should have ssl-cert tag")
+			gt.A(t, first.Tags).Has("malware").Describe("should have malware tag")
+
+			// Verify timestamp parsing
+			expectedTime, _ := time.Parse("2006-01-02 15:04:05", "2025-12-28 11:29:16")
+			gt.V(t, first.FirstSeen).Equal(expectedTime).Describe("first entry timestamp")
+		})
+
+		// Verify third entry
+		gt.A(t, entries).At(2, func(t testing.TB, third *feed.FeedEntry) {
+			gt.V(t, third.Value).Equal("733f676f539126a33ba45b6e2c8d3c9aee267dd8").Describe("third entry SHA1")
+			gt.S(t, third.Description).Equal("OffLoader C&C").Describe("third entry description")
+		})
+	})
+}
+
+func TestService_FetchAbuseCHURLhaus_E2E(t *testing.T) {
+	if os.Getenv("TEST_E2E") == "" {
+		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
+	}
+
+	ctx := context.Background()
+	svc := feed.New()
+	entries, err := svc.FetchAbuseCHURLhaus(ctx, "")
+	gt.NoError(t, err)
+	gt.True(t, len(entries) > 0).Describe("should fetch at least one entry from live feed")
+}
+
+func TestService_FetchAbuseCHThreatFox_E2E(t *testing.T) {
+	if os.Getenv("TEST_E2E") == "" {
+		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
+	}
+
+	ctx := context.Background()
+	svc := feed.New()
+	_, err := svc.FetchAbuseCHThreatFox(ctx, "")
+	gt.NoError(t, err)
+	// Feed may be temporarily empty, just verify successful fetch
+}
+
+func TestService_FetchAbuseCHFeodotracker_E2E(t *testing.T) {
+	if os.Getenv("TEST_E2E") == "" {
+		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
+	}
+
+	ctx := context.Background()
+	svc := feed.New()
+	entries, err := svc.FetchAbuseCHFeodotracker(ctx, "")
+	gt.NoError(t, err)
+	gt.True(t, len(entries) > 0).Describe("should fetch at least one entry from live feed")
+}
+
+func TestService_FetchAbuseCHSSLBlacklist_E2E(t *testing.T) {
+	if os.Getenv("TEST_E2E") == "" {
+		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
+	}
+
+	ctx := context.Background()
+	svc := feed.New()
+	entries, err := svc.FetchAbuseCHSSLBlacklist(ctx, "")
+	gt.NoError(t, err)
+	gt.True(t, len(entries) > 0).Describe("should fetch at least one entry from live feed")
 }

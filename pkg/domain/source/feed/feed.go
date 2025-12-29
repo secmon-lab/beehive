@@ -41,10 +41,8 @@ func New(
 ) (*FeedSource, error) {
 	// Config should already be validated, so Schema and Tags should be populated
 	// Get effective URL (explicit or default from schema)
+	// URL can be empty - feed service functions will use their default URLs
 	url := cfg.GetURL()
-	if url == "" {
-		return nil, goerr.New("no URL available for feed", goerr.V("id", id), goerr.V("schema", cfg.Schema.String()))
-	}
 
 	return &FeedSource{
 		id:          id,

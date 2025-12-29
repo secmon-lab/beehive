@@ -1,0 +1,19 @@
+################################################################
+# abuse.ch SSLBL SSL Certificate Blacklist (SHA1 Fingerprints) #
+# Last updated: 2025-12-28 11:29:16 UTC                        #
+#                                                              #
+# Terms Of Use: https://sslbl.abuse.ch/blacklist/              #
+# For questions please contact sslbl [at] abuse.ch             #
+################################################################
+#
+# Listingdate,SHA1,Listingreason
+2025-12-28 11:29:16,2be6327a2b03aed6322898941f4e6c7ca29de8e5,QuasarRAT C&C
+2025-12-28 11:29:07,12184cf278f7a334418580b93a2459f0358fd9fd,ACRStealer C&C
+2025-12-28 11:22:15,733f676f539126a33ba45b6e2c8d3c9aee267dd8,OffLoader C&C
+2025-12-28 11:22:13,9e3a099b0392f90a85defa0a590527fc24c856ac,ConnectWise C&C
+2025-12-27 09:27:57,18f6fb081557a654b26c348d6d9e6bffeb064e6f,OffLoader C&C
+2025-12-27 07:39:11,0b3c03d2685bcf32115f71fad8323c8c79f3ecf3,Vidar C&C
+2025-12-27 07:38:54,e3f74b63bb455a42d4351baff1f1eccd69ae5747,ACRStealer C&C
+2025-12-26 07:38:52,77ccc60769c2fcec1b720094cdaa0ff49e37227d,Vidar C&C
+2025-12-25 15:05:26,8e22e996d0215c4e2cb73e5621cb9de904b861cf,PureLogsStealer C&C
+2025-12-25 14:17:55,8b31dc2519edfe1fdac0ab790b3eae4bcb7ac4b3,OffLoader C&C
