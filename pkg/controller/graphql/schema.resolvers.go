@@ -128,7 +128,7 @@ func (r *queryResolver) ListHistories(ctx context.Context, sourceID string, limi
 		actualOffset = *offset
 	}
 
-	histories, err := r.repo.ListHistoriesBySource(ctx, sourceID, actualLimit, actualOffset)
+	histories, total, err := r.repo.ListHistoriesBySource(ctx, sourceID, actualLimit, actualOffset)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to list histories",
 			goerr.V("source_id", sourceID),
@@ -143,7 +143,7 @@ func (r *queryResolver) ListHistories(ctx context.Context, sourceID string, limi
 
 	return &graphql1.HistoryConnection{
 		Items: items,
-		Total: len(histories),
+		Total: total,
 	}, nil
 }
 

@@ -200,28 +200,32 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 		}
 
 		// List all histories (no limit)
-		retrieved, err := repo.ListHistoriesBySource(ctx, sourceID, 0, 0)
+		retrieved, total, err := repo.ListHistoriesBySource(ctx, sourceID, 0, 0)
 		gt.NoError(t, err)
 		gt.A(t, retrieved).Length(3).Describe("should retrieve all 3 histories")
+		gt.N(t, total).Equal(3).Describe("total should be 3")
 
 		// Verify order (newest first)
 		gt.True(t, retrieved[0].StartedAt.After(retrieved[1].StartedAt))
 		gt.True(t, retrieved[1].StartedAt.After(retrieved[2].StartedAt))
 
 		// Test pagination - get first 2
-		page1, err := repo.ListHistoriesBySource(ctx, sourceID, 2, 0)
+		page1, total1, err := repo.ListHistoriesBySource(ctx, sourceID, 2, 0)
 		gt.NoError(t, err)
 		gt.A(t, page1).Length(2).Describe("first page should have 2 items")
+		gt.N(t, total1).Equal(3).Describe("total should still be 3")
 
 		// Test pagination - get next 2 (only 1 remains)
-		page2, err := repo.ListHistoriesBySource(ctx, sourceID, 2, 2)
+		page2, total2, err := repo.ListHistoriesBySource(ctx, sourceID, 2, 2)
 		gt.NoError(t, err)
 		gt.A(t, page2).Length(1).Describe("second page should have 1 item")
+		gt.N(t, total2).Equal(3).Describe("total should still be 3")
 
 		// Test pagination - offset beyond available
-		page3, err := repo.ListHistoriesBySource(ctx, sourceID, 2, 10)
+		page3, total3, err := repo.ListHistoriesBySource(ctx, sourceID, 2, 10)
 		gt.NoError(t, err)
 		gt.A(t, page3).Length(0).Describe("page beyond available should be empty")
+		gt.N(t, total3).Equal(3).Describe("total should still be 3")
 	})
 
 	t.Run("get non-existent history returns error", func(t *testing.T) {
@@ -237,9 +241,10 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 		now := time.Now()
 		sourceID := now.Format("nonexistent-20060102-150405.000000")
 
-		histories, err := repo.ListHistoriesBySource(ctx, sourceID, 10, 0)
+		histories, total, err := repo.ListHistoriesBySource(ctx, sourceID, 10, 0)
 		gt.NoError(t, err)
 		gt.A(t, histories).Length(0).Describe("should return empty list for non-existent source")
+		gt.N(t, total).Equal(0).Describe("total should be 0 for non-existent source")
 	})
 
 	t.Run("empty source ID returns error", func(t *testing.T) {

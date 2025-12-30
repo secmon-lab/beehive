@@ -767,12 +767,37 @@ func (f *Firestore) SaveHistory(ctx context.Context, history *model.History) err
 }
 
 // ListHistoriesBySource retrieves histories for a specific source
-func (f *Firestore) ListHistoriesBySource(ctx context.Context, sourceID string, limit, offset int) ([]*model.History, error) {
+func (f *Firestore) ListHistoriesBySource(ctx context.Context, sourceID string, limit, offset int) ([]*model.History, int, error) {
 	// Path: sources/{sourceID}/histories
-	query := f.client.Collection(collectionSources).
+	historyCollection := f.client.Collection(collectionSources).
 		Doc(sourceID).
-		Collection(subcollectionHistories).
-		OrderBy("started_at", firestore.Desc)
+		Collection(subcollectionHistories)
+
+	// Get total count using aggregation query
+	aggregationQuery := historyCollection.NewAggregationQuery().WithCount("total")
+	aggregationResults, err := aggregationQuery.Get(ctx)
+	if err != nil {
+		return nil, 0, goerr.Wrap(err, "failed to get total history count",
+			goerr.V("source_id", sourceID))
+	}
+
+	// Extract count from aggregation result
+	totalValue, ok := aggregationResults["total"]
+	if !ok {
+		return nil, 0, goerr.New("total count not found in aggregation result")
+	}
+
+	// Convert count value to int (Firestore returns protobuf value)
+	pbValue, ok := totalValue.(*firestorepb.Value)
+	if !ok {
+		return nil, 0, goerr.New("total count has unexpected type",
+			goerr.V("type", fmt.Sprintf("%T", totalValue)),
+			goerr.V("value", totalValue))
+	}
+	total := int(pbValue.GetIntegerValue())
+
+	// Build query with ordering
+	query := historyCollection.OrderBy("started_at", firestore.Desc)
 
 	// Apply offset
 	if offset > 0 {
@@ -786,7 +811,7 @@ func (f *Firestore) ListHistoriesBySource(ctx context.Context, sourceID string, 
 
 	docs, err := query.Documents(ctx).GetAll()
 	if err != nil {
-		return nil, goerr.Wrap(err, "failed to list histories from firestore",
+		return nil, 0, goerr.Wrap(err, "failed to list histories from firestore",
 			goerr.V("source_id", sourceID),
 			goerr.V("limit", limit),
 			goerr.V("offset", offset))
@@ -796,14 +821,14 @@ func (f *Firestore) ListHistoriesBySource(ctx context.Context, sourceID string, 
 	for _, doc := range docs {
 		var fh firestoreHistory
 		if err := doc.DataTo(&fh); err != nil {
-			return nil, goerr.Wrap(err, "failed to decode history",
+			return nil, 0, goerr.Wrap(err, "failed to decode history",
 				goerr.V("doc_id", doc.Ref.ID),
 				goerr.V("source_id", sourceID))
 		}
 		histories = append(histories, toDomainHistory(&fh))
 	}
 
-	return histories, nil
+	return histories, total, nil
 }
 
 // GetHistory retrieves a specific history record

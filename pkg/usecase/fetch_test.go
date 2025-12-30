@@ -321,7 +321,7 @@ func TestFetchUseCase_HistorySaving(t *testing.T) {
 		gt.A(t, stats).Length(1).Describe("should have 1 stat entry")
 
 		// Verify history was saved
-		histories, err := repo.ListHistoriesBySource(ctx, sourceID, 10, 0)
+		histories, _, err := repo.ListHistoriesBySource(ctx, sourceID, 10, 0)
 		gt.NoError(t, err)
 		gt.A(t, histories).Length(1).Describe("should have exactly 1 history entry saved")
 
@@ -356,7 +356,7 @@ func TestFetchUseCase_HistorySaving(t *testing.T) {
 		gt.A(t, stats).Length(1).Describe("should have 1 stat entry")
 
 		// Verify history was saved with error details
-		histories, err := repo.ListHistoriesBySource(ctx, sourceID, 10, 0)
+		histories, _, err := repo.ListHistoriesBySource(ctx, sourceID, 10, 0)
 		gt.NoError(t, err)
 		gt.A(t, histories).Length(1).Describe("should have exactly 1 history entry")
 
@@ -406,12 +406,12 @@ func TestFetchUseCase_HistorySaving(t *testing.T) {
 		gt.A(t, stats).Length(2).Describe("should have 2 stat entries")
 
 		// Verify history for source1
-		histories1, err := repo.ListHistoriesBySource(ctx, source1ID, 10, 0)
+		histories1, _, err := repo.ListHistoriesBySource(ctx, source1ID, 10, 0)
 		gt.NoError(t, err)
 		gt.A(t, histories1).Length(1).Describe("source1 should have exactly 1 history entry")
 
 		// Verify history for source2
-		histories2, err := repo.ListHistoriesBySource(ctx, source2ID, 10, 0)
+		histories2, _, err := repo.ListHistoriesBySource(ctx, source2ID, 10, 0)
 		gt.NoError(t, err)
 		gt.A(t, histories2).Length(1).Describe("source2 should have exactly 1 history entry")
 	})

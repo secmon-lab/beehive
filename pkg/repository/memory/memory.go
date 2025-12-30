@@ -460,18 +460,20 @@ func (m *Memory) SaveHistory(ctx context.Context, history *model.History) error 
 }
 
 // ListHistoriesBySource retrieves histories for a specific source
-func (m *Memory) ListHistoriesBySource(ctx context.Context, sourceID string, limit, offset int) ([]*model.History, error) {
+func (m *Memory) ListHistoriesBySource(ctx context.Context, sourceID string, limit, offset int) ([]*model.History, int, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	histories, ok := m.histories[sourceID]
 	if !ok || len(histories) == 0 {
-		return []*model.History{}, nil
+		return []*model.History{}, 0, nil
 	}
+
+	total := len(histories)
 
 	// Apply offset
 	if offset >= len(histories) {
-		return []*model.History{}, nil
+		return []*model.History{}, total, nil
 	}
 
 	// Calculate end index
@@ -502,7 +504,7 @@ func (m *Memory) ListHistoriesBySource(ctx context.Context, sourceID string, lim
 		result[i] = &historyCopy
 	}
 
-	return result, nil
+	return result, total, nil
 }
 
 // GetHistory retrieves a specific history record

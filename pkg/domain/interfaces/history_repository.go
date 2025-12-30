@@ -19,9 +19,10 @@ type HistoryRepository interface {
 
 	// ListHistoriesBySource retrieves histories for a specific source
 	// Returns histories ordered by StartedAt descending (newest first)
-	// limit: maximum number of records to return
+	// limit: maximum number of records to return (0 = no limit)
 	// offset: number of records to skip
-	ListHistoriesBySource(ctx context.Context, sourceID string, limit, offset int) ([]*model.History, error)
+	// Returns: histories, total count, error
+	ListHistoriesBySource(ctx context.Context, sourceID string, limit, offset int) ([]*model.History, int, error)
 
 	// GetHistory retrieves a specific history record
 	GetHistory(ctx context.Context, sourceID string, historyID string) (*model.History, error)
