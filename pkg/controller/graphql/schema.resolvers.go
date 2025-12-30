@@ -118,7 +118,7 @@ func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, er
 
 // ListHistories is the resolver for the listHistories field.
 func (r *queryResolver) ListHistories(ctx context.Context, sourceID string, limit *int, offset *int) (*graphql1.HistoryConnection, error) {
-	actualLimit := 20
+	actualLimit := 0
 	if limit != nil {
 		actualLimit = *limit
 	}

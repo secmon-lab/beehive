@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"sort"
 	"time"
 
 	"github.com/secmon-lab/beehive/pkg/domain/model"
@@ -105,11 +106,18 @@ func toGraphQLSourceState(state *model.SourceState) *graphql1.SourceState {
 func toGraphQLHistory(h *model.History) *graphql1.History {
 	errors := make([]*graphql1.FetchError, len(h.Errors))
 	for i, e := range h.Errors {
+		// Sort keys to ensure consistent order in GraphQL response
+		keys := make([]string, 0, len(e.Values))
+		for k := range e.Values {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
 		values := make([]*graphql1.KeyValue, 0, len(e.Values))
-		for k, v := range e.Values {
+		for _, k := range keys {
 			values = append(values, &graphql1.KeyValue{
 				Key:   k,
-				Value: v,
+				Value: e.Values[k],
 			})
 		}
 
