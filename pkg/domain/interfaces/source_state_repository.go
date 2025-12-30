@@ -16,4 +16,7 @@ var (
 type SourceStateRepository interface {
 	GetState(ctx context.Context, sourceID string) (*model.SourceState, error)
 	SaveState(ctx context.Context, state *model.SourceState) error
+	// BatchGetStates retrieves multiple source states in a single operation
+	// Returns a map of sourceID -> SourceState. Missing states are not included in the map.
+	BatchGetStates(ctx context.Context, sourceIDs []string) (map[string]*model.SourceState, error)
 }

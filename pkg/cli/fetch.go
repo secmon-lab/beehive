@@ -78,6 +78,7 @@ func cmdFetch() *cli.Command {
 				interfaces.SourceStateRepository
 				rss.RSSStateRepository
 				feed.FeedStateRepository
+				interfaces.HistoryRepository
 			}
 
 			if dryRun {
@@ -122,7 +123,7 @@ func cmdFetch() *cli.Command {
 			logger.Info("initialized LLM client", "provider", llmCfg.Provider, "model", llmCfg.Model)
 
 			// Create sources from configuration
-			sources := createSources(ctx, cfg, repo, repo, repo, llmClient)
+			sources := createSources(ctx, cfg, repo, repo, repo, repo, llmClient)
 			logger.Info("created sources", "total", len(sources))
 
 			// Filter by tags if specified
@@ -200,7 +201,7 @@ func printFetchResults(stats []*interfaces.FetchStats) {
 		fmt.Printf("  IoCs Created:    %d\n", s.IoCsCreated)
 		fmt.Printf("  IoCs Updated:    %d\n", s.IoCsUpdated)
 		fmt.Printf("  IoCs Unchanged:  %d\n", s.IoCsUnchanged)
-		fmt.Printf("  Errors:          %d\n", s.Errors)
+		fmt.Printf("  Errors:          %d\n", s.ErrorCount)
 		fmt.Printf("  Processing Time: %v\n", s.ProcessingTime)
 		fmt.Println()
 
@@ -209,7 +210,7 @@ func printFetchResults(stats []*interfaces.FetchStats) {
 		totalCreated += s.IoCsCreated
 		totalUpdated += s.IoCsUpdated
 		totalUnchanged += s.IoCsUnchanged
-		totalErrors += s.Errors
+		totalErrors += s.ErrorCount
 	}
 
 	fmt.Println("=== Summary ===")

@@ -24,11 +24,12 @@ type RSSSource struct {
 	maxArticles int
 
 	// Dependencies (RSS-specific dependencies encapsulated)
-	iocRepo    interfaces.IoCRepository
-	stateRepo  RSSStateRepository
-	rssService *rss.Service
-	llmClient  gollem.LLMClient
-	extractor  *extractor.Extractor
+	iocRepo     interfaces.IoCRepository
+	stateRepo   RSSStateRepository
+	historyRepo interfaces.HistoryRepository
+	rssService  *rss.Service
+	llmClient   gollem.LLMClient
+	extractor   *extractor.Extractor
 }
 
 // New creates a new RSSSource instance
@@ -37,6 +38,7 @@ func New(
 	cfg config.RSSSource,
 	iocRepo interfaces.IoCRepository,
 	stateRepo RSSStateRepository,
+	historyRepo interfaces.HistoryRepository,
 	llmClient gollem.LLMClient,
 ) (*RSSSource, error) {
 	// Config should already be validated, so Tags should be populated
@@ -47,6 +49,7 @@ func New(
 		maxArticles: cfg.MaxArticles,
 		iocRepo:     iocRepo,
 		stateRepo:   stateRepo,
+		historyRepo: historyRepo,
 		rssService:  rss.New(),
 		llmClient:   llmClient,
 		extractor:   extractor.New(llmClient),
@@ -127,8 +130,12 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 	// Accumulate IoCs for batch writing
 	var iocsToSave []*model.IoC
 
+	// Track accessed URLs (RSS feed URL + article URLs)
+	accessedURLs := []string{s.url}
+
 	// Process each article
 	for _, article := range newArticles {
+		accessedURLs = append(accessedURLs, article.Link)
 		// Fetch article content
 		content, err := s.rssService.FetchArticleContent(ctx, article.Link)
 		if err != nil {
@@ -136,7 +143,7 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 				"source_id", s.id,
 				"url", article.Link,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
 			continue
 		}
 
@@ -147,7 +154,7 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 				"source_id", s.id,
 				"url", article.Link,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
 			continue
 		}
 
@@ -170,7 +177,7 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 				logger.Warn("failed to convert extracted IoC",
 					"source_id", s.id,
 					"error", err)
-				stats.Errors++
+				stats.ErrorCount++
 				continue
 			}
 
@@ -222,7 +229,7 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 				"total_iocs", len(iocsToSave),
 				"result", result,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
 		}
 
 		logger.Info("batch saved IoCs",
@@ -242,8 +249,8 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 		state.LastFetchedAt = time.Now()
 	}
 
-	state.ErrorCount += int64(stats.Errors)
-	if stats.Errors > 0 {
+	state.ErrorCount += int64(stats.ErrorCount)
+	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
 	} else {
 		state.LastError = ""
@@ -257,5 +264,34 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 	}
 
 	stats.ProcessingTime = time.Since(startTime)
+
+	// Save ingestion history
+	history := &model.History{
+		ID:             model.GenerateHistoryID(),
+		SourceID:       s.id,
+		SourceType:     model.SourceTypeRSS,
+		Status:         model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched),
+		StartedAt:      startTime,
+		CompletedAt:    time.Now(),
+		ProcessingTime: stats.ProcessingTime,
+		URLs:           accessedURLs,
+		ItemsFetched:   stats.ItemsFetched,
+		IoCsExtracted:  stats.IoCsExtracted,
+		IoCsCreated:    stats.IoCsCreated,
+		IoCsUpdated:    stats.IoCsUpdated,
+		IoCsUnchanged:  stats.IoCsUnchanged,
+		ErrorCount:     stats.ErrorCount,
+		Errors:         nil, // TODO: track fetch errors
+		CreatedAt:      time.Now(),
+	}
+
+	if err := s.historyRepo.SaveHistory(ctx, history); err != nil {
+		// History save failure should not fail the fetch operation
+		logger.Error("failed to save fetch history",
+			"source_id", s.id,
+			"history_id", history.ID,
+			"error", err)
+	}
+
 	return stats, nil
 }

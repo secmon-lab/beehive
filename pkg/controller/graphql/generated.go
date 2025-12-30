@@ -47,6 +47,35 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	FetchError struct {
+		Message func(childComplexity int) int
+		Values  func(childComplexity int) int
+	}
+
+	History struct {
+		CompletedAt    func(childComplexity int) int
+		CreatedAt      func(childComplexity int) int
+		ErrorCount     func(childComplexity int) int
+		Errors         func(childComplexity int) int
+		ID             func(childComplexity int) int
+		IoCsCreated    func(childComplexity int) int
+		IoCsExtracted  func(childComplexity int) int
+		IoCsUnchanged  func(childComplexity int) int
+		IoCsUpdated    func(childComplexity int) int
+		ItemsFetched   func(childComplexity int) int
+		ProcessingTime func(childComplexity int) int
+		SourceID       func(childComplexity int) int
+		SourceType     func(childComplexity int) int
+		StartedAt      func(childComplexity int) int
+		Status         func(childComplexity int) int
+		Urls           func(childComplexity int) int
+	}
+
+	HistoryConnection struct {
+		Items func(childComplexity int) int
+		Total func(childComplexity int) int
+	}
+
 	IoC struct {
 		Context     func(childComplexity int) int
 		Description func(childComplexity int) int
@@ -66,15 +95,22 @@ type ComplexityRoot struct {
 		Total func(childComplexity int) int
 	}
 
+	KeyValue struct {
+		Key   func(childComplexity int) int
+		Value func(childComplexity int) int
+	}
+
 	Mutation struct {
 		Noop func(childComplexity int) int
 	}
 
 	Query struct {
-		GetIoC      func(childComplexity int, id string) int
-		Health      func(childComplexity int) int
-		ListIoCs    func(childComplexity int, options *graphql1.IoCListOptions) int
-		ListSources func(childComplexity int) int
+		GetHistory    func(childComplexity int, sourceID string, id string) int
+		GetIoC        func(childComplexity int, id string) int
+		Health        func(childComplexity int) int
+		ListHistories func(childComplexity int, sourceID string, limit *int, offset *int) int
+		ListIoCs      func(childComplexity int, options *graphql1.IoCListOptions) int
+		ListSources   func(childComplexity int) int
 	}
 
 	Source struct {
@@ -106,6 +142,8 @@ type QueryResolver interface {
 	ListIoCs(ctx context.Context, options *graphql1.IoCListOptions) (*graphql1.IoCConnection, error)
 	GetIoC(ctx context.Context, id string) (*graphql1.IoC, error)
 	ListSources(ctx context.Context) ([]*graphql1.Source, error)
+	ListHistories(ctx context.Context, sourceID string, limit *int, offset *int) (*graphql1.HistoryConnection, error)
+	GetHistory(ctx context.Context, sourceID string, id string) (*graphql1.History, error)
 }
 
 type executableSchema struct {
@@ -126,6 +164,129 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := executionContext{nil, e, 0, 0, nil}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "FetchError.message":
+		if e.complexity.FetchError.Message == nil {
+			break
+		}
+
+		return e.complexity.FetchError.Message(childComplexity), true
+	case "FetchError.values":
+		if e.complexity.FetchError.Values == nil {
+			break
+		}
+
+		return e.complexity.FetchError.Values(childComplexity), true
+
+	case "History.completedAt":
+		if e.complexity.History.CompletedAt == nil {
+			break
+		}
+
+		return e.complexity.History.CompletedAt(childComplexity), true
+	case "History.createdAt":
+		if e.complexity.History.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.History.CreatedAt(childComplexity), true
+	case "History.errorCount":
+		if e.complexity.History.ErrorCount == nil {
+			break
+		}
+
+		return e.complexity.History.ErrorCount(childComplexity), true
+	case "History.errors":
+		if e.complexity.History.Errors == nil {
+			break
+		}
+
+		return e.complexity.History.Errors(childComplexity), true
+	case "History.id":
+		if e.complexity.History.ID == nil {
+			break
+		}
+
+		return e.complexity.History.ID(childComplexity), true
+	case "History.ioCsCreated":
+		if e.complexity.History.IoCsCreated == nil {
+			break
+		}
+
+		return e.complexity.History.IoCsCreated(childComplexity), true
+	case "History.ioCsExtracted":
+		if e.complexity.History.IoCsExtracted == nil {
+			break
+		}
+
+		return e.complexity.History.IoCsExtracted(childComplexity), true
+	case "History.ioCsUnchanged":
+		if e.complexity.History.IoCsUnchanged == nil {
+			break
+		}
+
+		return e.complexity.History.IoCsUnchanged(childComplexity), true
+	case "History.ioCsUpdated":
+		if e.complexity.History.IoCsUpdated == nil {
+			break
+		}
+
+		return e.complexity.History.IoCsUpdated(childComplexity), true
+	case "History.itemsFetched":
+		if e.complexity.History.ItemsFetched == nil {
+			break
+		}
+
+		return e.complexity.History.ItemsFetched(childComplexity), true
+	case "History.processingTime":
+		if e.complexity.History.ProcessingTime == nil {
+			break
+		}
+
+		return e.complexity.History.ProcessingTime(childComplexity), true
+	case "History.sourceID":
+		if e.complexity.History.SourceID == nil {
+			break
+		}
+
+		return e.complexity.History.SourceID(childComplexity), true
+	case "History.sourceType":
+		if e.complexity.History.SourceType == nil {
+			break
+		}
+
+		return e.complexity.History.SourceType(childComplexity), true
+	case "History.startedAt":
+		if e.complexity.History.StartedAt == nil {
+			break
+		}
+
+		return e.complexity.History.StartedAt(childComplexity), true
+	case "History.status":
+		if e.complexity.History.Status == nil {
+			break
+		}
+
+		return e.complexity.History.Status(childComplexity), true
+	case "History.urls":
+		if e.complexity.History.Urls == nil {
+			break
+		}
+
+		return e.complexity.History.Urls(childComplexity), true
+
+	case "HistoryConnection.items":
+		if e.complexity.HistoryConnection.Items == nil {
+			break
+		}
+
+		return e.complexity.HistoryConnection.Items(childComplexity), true
+	case "HistoryConnection.total":
+		if e.complexity.HistoryConnection.Total == nil {
+			break
+		}
+
+		return e.complexity.HistoryConnection.Total(childComplexity), true
 
 	case "IoC.context":
 		if e.complexity.IoC.Context == nil {
@@ -207,6 +368,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.IoCConnection.Total(childComplexity), true
 
+	case "KeyValue.key":
+		if e.complexity.KeyValue.Key == nil {
+			break
+		}
+
+		return e.complexity.KeyValue.Key(childComplexity), true
+	case "KeyValue.value":
+		if e.complexity.KeyValue.Value == nil {
+			break
+		}
+
+		return e.complexity.KeyValue.Value(childComplexity), true
+
 	case "Mutation.noop":
 		if e.complexity.Mutation.Noop == nil {
 			break
@@ -214,6 +388,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.Noop(childComplexity), true
 
+	case "Query.getHistory":
+		if e.complexity.Query.GetHistory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getHistory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetHistory(childComplexity, args["sourceID"].(string), args["id"].(string)), true
 	case "Query.getIoC":
 		if e.complexity.Query.GetIoC == nil {
 			break
@@ -231,6 +416,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Health(childComplexity), true
+	case "Query.listHistories":
+		if e.complexity.Query.ListHistories == nil {
+			break
+		}
+
+		args, err := ec.field_Query_listHistories_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ListHistories(childComplexity, args["sourceID"].(string), args["limit"].(*int), args["offset"].(*int)), true
 	case "Query.listIoCs":
 		if e.complexity.Query.ListIoCs == nil {
 			break
@@ -503,11 +699,49 @@ type SourceState {
   updatedAt: Time!
 }
 
+type KeyValue {
+  key: String!
+  value: String!
+}
+
+type FetchError {
+  message: String!
+  values: [KeyValue!]!
+}
+
+type History {
+  id: ID!
+  sourceID: String!
+  sourceType: String!
+  status: String!
+  startedAt: Time!
+  completedAt: Time!
+  processingTime: Int!
+  urls: [String!]!
+
+  itemsFetched: Int!
+  ioCsExtracted: Int!
+  ioCsCreated: Int!
+  ioCsUpdated: Int!
+  ioCsUnchanged: Int!
+  errorCount: Int!
+
+  errors: [FetchError!]!
+  createdAt: Time!
+}
+
+type HistoryConnection {
+  items: [History!]!
+  total: Int!
+}
+
 type Query {
   health: String!
   listIoCs(options: IoCListOptions): IoCConnection!
   getIoC(id: ID!): IoC
   listSources: [Source!]!
+  listHistories(sourceID: String!, limit: Int, offset: Int): HistoryConnection!
+  getHistory(sourceID: String!, id: ID!): History
 }
 
 type Mutation {
@@ -532,6 +766,22 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_getHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sourceID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sourceID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_getIoC_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -540,6 +790,27 @@ func (ec *executionContext) field_Query_getIoC_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_listHistories_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sourceID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sourceID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "offset", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg2
 	return args, nil
 }
 
@@ -605,6 +876,632 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _FetchError_message(ctx context.Context, field graphql.CollectedField, obj *graphql1.FetchError) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FetchError_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FetchError_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FetchError",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FetchError_values(ctx context.Context, field graphql.CollectedField, obj *graphql1.FetchError) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FetchError_values,
+		func(ctx context.Context) (any, error) {
+			return obj.Values, nil
+		},
+		nil,
+		ec.marshalNKeyValue2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐKeyValueᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FetchError_values(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FetchError",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "key":
+				return ec.fieldContext_KeyValue_key(ctx, field)
+			case "value":
+				return ec.fieldContext_KeyValue_value(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type KeyValue", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_id(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_sourceID(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_sourceID,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_sourceID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_sourceType(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_sourceType,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_sourceType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_status(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_startedAt(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_startedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_completedAt(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_completedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_processingTime(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_processingTime,
+		func(ctx context.Context) (any, error) {
+			return obj.ProcessingTime, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_processingTime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_urls(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_urls,
+		func(ctx context.Context) (any, error) {
+			return obj.Urls, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_urls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_itemsFetched(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_itemsFetched,
+		func(ctx context.Context) (any, error) {
+			return obj.ItemsFetched, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_itemsFetched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_ioCsExtracted(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_ioCsExtracted,
+		func(ctx context.Context) (any, error) {
+			return obj.IoCsExtracted, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_ioCsExtracted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_ioCsCreated(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_ioCsCreated,
+		func(ctx context.Context) (any, error) {
+			return obj.IoCsCreated, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_ioCsCreated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_ioCsUpdated(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_ioCsUpdated,
+		func(ctx context.Context) (any, error) {
+			return obj.IoCsUpdated, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_ioCsUpdated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_ioCsUnchanged(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_ioCsUnchanged,
+		func(ctx context.Context) (any, error) {
+			return obj.IoCsUnchanged, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_ioCsUnchanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_errorCount(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_errorCount,
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_errorCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_errors(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_errors,
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		ec.marshalNFetchError2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐFetchErrorᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "message":
+				return ec.fieldContext_FetchError_message(ctx, field)
+			case "values":
+				return ec.fieldContext_FetchError_values(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FetchError", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _History_createdAt(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HistoryConnection_items(ctx context.Context, field graphql.CollectedField, obj *graphql1.HistoryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HistoryConnection_items,
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		ec.marshalNHistory2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistoryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HistoryConnection_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HistoryConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_History_id(ctx, field)
+			case "sourceID":
+				return ec.fieldContext_History_sourceID(ctx, field)
+			case "sourceType":
+				return ec.fieldContext_History_sourceType(ctx, field)
+			case "status":
+				return ec.fieldContext_History_status(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_History_startedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_History_completedAt(ctx, field)
+			case "processingTime":
+				return ec.fieldContext_History_processingTime(ctx, field)
+			case "urls":
+				return ec.fieldContext_History_urls(ctx, field)
+			case "itemsFetched":
+				return ec.fieldContext_History_itemsFetched(ctx, field)
+			case "ioCsExtracted":
+				return ec.fieldContext_History_ioCsExtracted(ctx, field)
+			case "ioCsCreated":
+				return ec.fieldContext_History_ioCsCreated(ctx, field)
+			case "ioCsUpdated":
+				return ec.fieldContext_History_ioCsUpdated(ctx, field)
+			case "ioCsUnchanged":
+				return ec.fieldContext_History_ioCsUnchanged(ctx, field)
+			case "errorCount":
+				return ec.fieldContext_History_errorCount(ctx, field)
+			case "errors":
+				return ec.fieldContext_History_errors(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_History_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type History", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HistoryConnection_total(ctx context.Context, field graphql.CollectedField, obj *graphql1.HistoryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HistoryConnection_total,
+		func(ctx context.Context) (any, error) {
+			return obj.Total, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HistoryConnection_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HistoryConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
 
 func (ec *executionContext) _IoC_id(ctx context.Context, field graphql.CollectedField, obj *graphql1.IoC) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
@@ -1007,6 +1904,64 @@ func (ec *executionContext) fieldContext_IoCConnection_total(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _KeyValue_key(ctx context.Context, field graphql.CollectedField, obj *graphql1.KeyValue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_KeyValue_key,
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_KeyValue_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "KeyValue",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _KeyValue_value(ctx context.Context, field graphql.CollectedField, obj *graphql1.KeyValue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_KeyValue_value,
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_KeyValue_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "KeyValue",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_noop(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1216,6 +2171,128 @@ func (ec *executionContext) fieldContext_Query_listSources(_ context.Context, fi
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Source", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_listHistories(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_listHistories,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ListHistories(ctx, fc.Args["sourceID"].(string), fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		ec.marshalNHistoryConnection2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistoryConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_listHistories(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "items":
+				return ec.fieldContext_HistoryConnection_items(ctx, field)
+			case "total":
+				return ec.fieldContext_HistoryConnection_total(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type HistoryConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_listHistories_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_getHistory,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().GetHistory(ctx, fc.Args["sourceID"].(string), fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOHistory2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistory,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_getHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_History_id(ctx, field)
+			case "sourceID":
+				return ec.fieldContext_History_sourceID(ctx, field)
+			case "sourceType":
+				return ec.fieldContext_History_sourceType(ctx, field)
+			case "status":
+				return ec.fieldContext_History_status(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_History_startedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_History_completedAt(ctx, field)
+			case "processingTime":
+				return ec.fieldContext_History_processingTime(ctx, field)
+			case "urls":
+				return ec.fieldContext_History_urls(ctx, field)
+			case "itemsFetched":
+				return ec.fieldContext_History_itemsFetched(ctx, field)
+			case "ioCsExtracted":
+				return ec.fieldContext_History_ioCsExtracted(ctx, field)
+			case "ioCsCreated":
+				return ec.fieldContext_History_ioCsCreated(ctx, field)
+			case "ioCsUpdated":
+				return ec.fieldContext_History_ioCsUpdated(ctx, field)
+			case "ioCsUnchanged":
+				return ec.fieldContext_History_ioCsUnchanged(ctx, field)
+			case "errorCount":
+				return ec.fieldContext_History_errorCount(ctx, field)
+			case "errors":
+				return ec.fieldContext_History_errors(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_History_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type History", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -3254,6 +4331,208 @@ func (ec *executionContext) unmarshalInputIoCListOptions(ctx context.Context, ob
 
 // region    **************************** object.gotpl ****************************
 
+var fetchErrorImplementors = []string{"FetchError"}
+
+func (ec *executionContext) _FetchError(ctx context.Context, sel ast.SelectionSet, obj *graphql1.FetchError) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fetchErrorImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FetchError")
+		case "message":
+			out.Values[i] = ec._FetchError_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "values":
+			out.Values[i] = ec._FetchError_values(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var historyImplementors = []string{"History"}
+
+func (ec *executionContext) _History(ctx context.Context, sel ast.SelectionSet, obj *graphql1.History) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, historyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("History")
+		case "id":
+			out.Values[i] = ec._History_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceID":
+			out.Values[i] = ec._History_sourceID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceType":
+			out.Values[i] = ec._History_sourceType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._History_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startedAt":
+			out.Values[i] = ec._History_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completedAt":
+			out.Values[i] = ec._History_completedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "processingTime":
+			out.Values[i] = ec._History_processingTime(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "urls":
+			out.Values[i] = ec._History_urls(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "itemsFetched":
+			out.Values[i] = ec._History_itemsFetched(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ioCsExtracted":
+			out.Values[i] = ec._History_ioCsExtracted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ioCsCreated":
+			out.Values[i] = ec._History_ioCsCreated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ioCsUpdated":
+			out.Values[i] = ec._History_ioCsUpdated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ioCsUnchanged":
+			out.Values[i] = ec._History_ioCsUnchanged(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorCount":
+			out.Values[i] = ec._History_errorCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._History_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._History_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var historyConnectionImplementors = []string{"HistoryConnection"}
+
+func (ec *executionContext) _HistoryConnection(ctx context.Context, sel ast.SelectionSet, obj *graphql1.HistoryConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, historyConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("HistoryConnection")
+		case "items":
+			out.Values[i] = ec._HistoryConnection_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "total":
+			out.Values[i] = ec._HistoryConnection_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var ioCImplementors = []string{"IoC"}
 
 func (ec *executionContext) _IoC(ctx context.Context, sel ast.SelectionSet, obj *graphql1.IoC) graphql.Marshaler {
@@ -3358,6 +4637,50 @@ func (ec *executionContext) _IoCConnection(ctx context.Context, sel ast.Selectio
 			}
 		case "total":
 			out.Values[i] = ec._IoCConnection_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var keyValueImplementors = []string{"KeyValue"}
+
+func (ec *executionContext) _KeyValue(ctx context.Context, sel ast.SelectionSet, obj *graphql1.KeyValue) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, keyValueImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("KeyValue")
+		case "key":
+			out.Values[i] = ec._KeyValue_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._KeyValue_value(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -3525,6 +4848,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "listHistories":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_listHistories(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getHistory":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getHistory(ctx, field)
 				return res
 			}
 
@@ -4039,6 +5403,128 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalNFetchError2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐFetchErrorᚄ(ctx context.Context, sel ast.SelectionSet, v []*graphql1.FetchError) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNFetchError2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐFetchError(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFetchError2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐFetchError(ctx context.Context, sel ast.SelectionSet, v *graphql1.FetchError) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FetchError(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNHistory2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*graphql1.History) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNHistory2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistory(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNHistory2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistory(ctx context.Context, sel ast.SelectionSet, v *graphql1.History) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._History(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNHistoryConnection2githubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistoryConnection(ctx context.Context, sel ast.SelectionSet, v graphql1.HistoryConnection) graphql.Marshaler {
+	return ec._HistoryConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNHistoryConnection2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistoryConnection(ctx context.Context, sel ast.SelectionSet, v *graphql1.HistoryConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._HistoryConnection(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4137,6 +5623,60 @@ func (ec *executionContext) marshalNIoCConnection2ᚖgithubᚗcomᚋsecmonᚑlab
 		return graphql.Null
 	}
 	return ec._IoCConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNKeyValue2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐKeyValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*graphql1.KeyValue) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNKeyValue2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐKeyValue(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNKeyValue2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐKeyValue(ctx context.Context, sel ast.SelectionSet, v *graphql1.KeyValue) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._KeyValue(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNSource2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSourceᚄ(ctx context.Context, sel ast.SelectionSet, v []*graphql1.Source) graphql.Marshaler {
@@ -4536,6 +6076,13 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOHistory2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistory(ctx context.Context, sel ast.SelectionSet, v *graphql1.History) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._History(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {

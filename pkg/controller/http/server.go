@@ -55,6 +55,8 @@ func New(gqlResolver *gqlcontroller.Resolver, opts ...Options) *Server {
 	// GraphQL endpoint (must be registered before catch-all route)
 	gqlHandler := graphqlHandler(gqlResolver)
 	r.Route("/graphql", func(r chi.Router) {
+		// Add data loader middleware for GraphQL requests
+		r.Use(dataLoaderMiddleware(gqlResolver))
 		r.Post("/", gqlHandler.ServeHTTP)
 		r.Get("/", gqlHandler.ServeHTTP) // Support GET for introspection
 	})
@@ -105,6 +107,18 @@ func accessLogger(next http.Handler) http.Handler {
 
 		next.ServeHTTP(ww, r)
 	})
+}
+
+// dataLoaderMiddleware adds data loaders to the request context
+func dataLoaderMiddleware(resolver *gqlcontroller.Resolver) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Create loaders for this request
+			loaders := gqlcontroller.NewLoaders(resolver.Repository())
+			ctx := gqlcontroller.ContextWithLoaders(r.Context(), loaders)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
 // GraphQL handler

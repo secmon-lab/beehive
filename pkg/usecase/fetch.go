@@ -20,6 +20,7 @@ import (
 type FetchUseCase struct {
 	iocRepo     interfaces.IoCRepository
 	stateRepo   interfaces.SourceStateRepository
+	historyRepo interfaces.HistoryRepository
 	llmClient   gollem.LLMClient
 	rssService  *rss.Service
 	feedService *feed.Service
@@ -36,7 +37,7 @@ type FetchStats struct {
 	IoCsUpdated    int // Existing IoCs updated (description/status changed)
 	IoCsUnchanged  int // Existing IoCs unchanged (skipped)
 	IoCsGeneric    int // Generic IoCs skipped
-	Errors         int
+	ErrorCount     int
 	ProcessingTime time.Duration
 }
 
@@ -44,6 +45,7 @@ type FetchStats struct {
 func NewFetchUseCase(
 	iocRepo interfaces.IoCRepository,
 	stateRepo interfaces.SourceStateRepository,
+	historyRepo interfaces.HistoryRepository,
 	llmClient gollem.LLMClient,
 ) *FetchUseCase {
 	// Initialize n-gram vectorizer for embedding generation
@@ -52,6 +54,7 @@ func NewFetchUseCase(
 	return &FetchUseCase{
 		iocRepo:     iocRepo,
 		stateRepo:   stateRepo,
+		historyRepo: historyRepo,
 		llmClient:   llmClient,
 		rssService:  rss.New(),
 		feedService: feed.New(),
@@ -100,10 +103,37 @@ func (uc *FetchUseCase) FetchAllSources(ctx context.Context, sources map[string]
 				"source_id", sourceID,
 				"error", err)
 			// Continue with other sources even if one fails
+			// Create stats with error information
 			stats = &FetchStats{
 				SourceID:   sourceID,
 				SourceType: string(source.Type),
-				Errors:     1,
+				ErrorCount: 1,
+			}
+
+			// Save history for the failed fetch
+			history := &model.History{
+				ID:             model.GenerateHistoryID(),
+				SourceID:       sourceID,
+				SourceType:     source.Type,
+				Status:         model.FetchStatusFailure,
+				StartedAt:      time.Now(),
+				CompletedAt:    time.Now(),
+				ProcessingTime: 0,
+				URLs:           []string{}, // URL unknown for failed fetch
+				ItemsFetched:   0,
+				IoCsExtracted:  0,
+				IoCsCreated:    0,
+				IoCsUpdated:    0,
+				IoCsUnchanged:  0,
+				ErrorCount:     1,
+				Errors:         []*model.FetchError{model.ExtractErrorInfo(err)},
+				CreatedAt:      time.Now(),
+			}
+			if histErr := uc.historyRepo.SaveHistory(ctx, history); histErr != nil {
+				logger.Error("failed to save fetch history",
+					"source_id", sourceID,
+					"history_id", history.ID,
+					"error", histErr)
 			}
 		}
 
@@ -121,6 +151,9 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 		SourceID:   sourceID,
 		SourceType: string(model.SourceTypeRSS),
 	}
+
+	// Track errors with context for history
+	var fetchErrors []*model.FetchError
 
 	// Get previous state
 	state, err := uc.stateRepo.GetState(ctx, sourceID)
@@ -176,7 +209,8 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 				"source_id", sourceID,
 				"url", article.Link,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
+			fetchErrors = append(fetchErrors, model.ExtractErrorInfo(err))
 			continue
 		}
 
@@ -187,7 +221,8 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 				"source_id", sourceID,
 				"url", article.Link,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
+			fetchErrors = append(fetchErrors, model.ExtractErrorInfo(err))
 			continue
 		}
 
@@ -210,7 +245,8 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 				logger.Warn("failed to convert extracted IoC",
 					"source_id", sourceID,
 					"error", err)
-				stats.Errors++
+				stats.ErrorCount++
+				fetchErrors = append(fetchErrors, model.ExtractErrorInfo(err))
 				continue
 			}
 
@@ -262,7 +298,8 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 				"total_iocs", len(iocsToSave),
 				"result", result,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
+			fetchErrors = append(fetchErrors, model.ExtractErrorInfo(err))
 		}
 
 		logger.Info("batch saved IoCs",
@@ -282,8 +319,8 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 		state.LastFetchedAt = time.Now()
 	}
 
-	state.ErrorCount += int64(stats.Errors)
-	if stats.Errors > 0 {
+	state.ErrorCount += int64(stats.ErrorCount)
+	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
 	} else {
 		state.LastError = ""
@@ -296,6 +333,41 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 	}
 
 	stats.ProcessingTime = time.Since(startTime)
+
+	// Save ingestion history
+	history := &model.History{
+		ID:             model.GenerateHistoryID(),
+		SourceID:       sourceID,
+		SourceType:     model.SourceTypeRSS,
+		Status:         model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched),
+		StartedAt:      startTime,
+		CompletedAt:    time.Now(),
+		ProcessingTime: stats.ProcessingTime,
+		URLs:           []string{}, // TODO: track accessed URLs in usecase
+		ItemsFetched:   stats.ItemsFetched,
+		IoCsExtracted:  stats.IoCsExtracted,
+		IoCsCreated:    stats.IoCsCreated,
+		IoCsUpdated:    stats.IoCsUpdated,
+		IoCsUnchanged:  stats.IoCsUnchanged,
+		ErrorCount:     stats.ErrorCount,
+		Errors:         fetchErrors,
+		CreatedAt:      time.Now(),
+	}
+
+	logger.Info("attempting to save fetch history",
+		"source_id", sourceID,
+		"history_id", history.ID,
+		"status", history.Status,
+		"items_fetched", history.ItemsFetched)
+
+	if err := uc.historyRepo.SaveHistory(ctx, history); err != nil {
+		// History save failure should not fail the fetch operation
+		logger.Error("failed to save fetch history",
+			"source_id", sourceID,
+			"history_id", history.ID,
+			"error", err)
+	}
+
 	return stats, nil
 }
 
@@ -307,6 +379,9 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 		SourceID:   sourceID,
 		SourceType: string(model.SourceTypeFeed),
 	}
+
+	// Track errors with context for history
+	var fetchErrors []*model.FetchError
 
 	if source.FeedConfig == nil || source.FeedConfig.Schema == "" {
 		return stats, goerr.New("feed config not specified", goerr.V("source_id", sourceID))
@@ -408,7 +483,8 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 				"total_iocs", len(iocsToSave),
 				"result", result,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
+			fetchErrors = append(fetchErrors, model.ExtractErrorInfo(err))
 		}
 
 		logger.Info("batch saved IoCs",
@@ -437,7 +513,8 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 				"total_inactive", len(inactiveIoCs),
 				"updated_count", inactiveCount,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
+			fetchErrors = append(fetchErrors, model.ExtractErrorInfo(err))
 		}
 
 		logger.Info("batch marked IoCs as inactive",
@@ -451,10 +528,10 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 		SourceID:      sourceID,
 		LastFetchedAt: time.Now(),
 		ItemCount:     int64(len(entries)),
-		ErrorCount:    int64(stats.Errors),
+		ErrorCount:    int64(stats.ErrorCount),
 	}
 
-	if stats.Errors > 0 {
+	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
 	}
 
@@ -465,6 +542,41 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 	}
 
 	stats.ProcessingTime = time.Since(startTime)
+
+	// Save ingestion history
+	history := &model.History{
+		ID:             model.GenerateHistoryID(),
+		SourceID:       sourceID,
+		SourceType:     model.SourceTypeFeed,
+		Status:         model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched),
+		StartedAt:      startTime,
+		CompletedAt:    time.Now(),
+		ProcessingTime: stats.ProcessingTime,
+		URLs:           []string{}, // TODO: track accessed URLs in usecase
+		ItemsFetched:   stats.ItemsFetched,
+		IoCsExtracted:  stats.IoCsExtracted,
+		IoCsCreated:    stats.IoCsCreated,
+		IoCsUpdated:    stats.IoCsUpdated,
+		IoCsUnchanged:  stats.IoCsUnchanged,
+		ErrorCount:     stats.ErrorCount,
+		Errors:         fetchErrors,
+		CreatedAt:      time.Now(),
+	}
+
+	logger.Info("attempting to save fetch history",
+		"source_id", sourceID,
+		"history_id", history.ID,
+		"status", history.Status,
+		"items_fetched", history.ItemsFetched)
+
+	if err := uc.historyRepo.SaveHistory(ctx, history); err != nil {
+		// History save failure should not fail the fetch operation
+		logger.Error("failed to save fetch history",
+			"source_id", sourceID,
+			"history_id", history.ID,
+			"error", err)
+	}
+
 	return stats, nil
 }
 

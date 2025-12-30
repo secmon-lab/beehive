@@ -19,11 +19,13 @@ type Memory struct {
 	sourceStates map[string]*model.SourceState // key: Source ID
 	rssStates    map[string]*rss.RSSState      // key: Source ID
 	feedStates   map[string]*feed.FeedState    // key: Source ID
+	histories    map[string][]*model.History   // key: Source ID, sorted by StartedAt descending
 	mu           sync.RWMutex
 }
 
 var _ interfaces.IoCRepository = &Memory{}
 var _ interfaces.SourceStateRepository = &Memory{}
+var _ interfaces.HistoryRepository = &Memory{}
 var _ rss.RSSStateRepository = &Memory{}
 var _ feed.FeedStateRepository = &Memory{}
 
@@ -33,6 +35,7 @@ func New() *Memory {
 		sourceStates: make(map[string]*model.SourceState),
 		rssStates:    make(map[string]*rss.RSSState),
 		feedStates:   make(map[string]*feed.FeedState),
+		histories:    make(map[string][]*model.History),
 	}
 }
 
@@ -254,6 +257,23 @@ func (m *Memory) SaveState(ctx context.Context, state *model.SourceState) error 
 	return nil
 }
 
+// BatchGetStates retrieves multiple source states in a single operation
+func (m *Memory) BatchGetStates(ctx context.Context, sourceIDs []string) (map[string]*model.SourceState, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[string]*model.SourceState, len(sourceIDs))
+	for _, sourceID := range sourceIDs {
+		if state, ok := m.sourceStates[sourceID]; ok {
+			// Return a copy to prevent external modification
+			stateCopy := *state
+			result[sourceID] = &stateCopy
+		}
+	}
+
+	return result, nil
+}
+
 // GetRSSState retrieves RSS state by source ID
 func (m *Memory) GetRSSState(ctx context.Context, sourceID string) (*rss.RSSState, error) {
 	m.mu.RLock()
@@ -396,4 +416,129 @@ func cosineSimilarity(a, b []float32) float64 {
 	}
 
 	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
+}
+
+// SaveHistory saves a fetch history record
+func (m *Memory) SaveHistory(ctx context.Context, history *model.History) error {
+	if history.SourceID == "" {
+		return goerr.New("source ID cannot be empty")
+	}
+	if history.ID == "" {
+		return goerr.New("history ID cannot be empty")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Store a copy to prevent external modification
+	historyCopy := *history
+	if historyCopy.Errors != nil {
+		errorsCopy := make([]*model.FetchError, len(history.Errors))
+		for i, err := range history.Errors {
+			errCopy := *err
+			if errCopy.Values != nil {
+				valuesCopy := make(map[string]string, len(err.Values))
+				for k, v := range err.Values {
+					valuesCopy[k] = v
+				}
+				errCopy.Values = valuesCopy
+			}
+			errorsCopy[i] = &errCopy
+		}
+		historyCopy.Errors = errorsCopy
+	}
+
+	// Add to source's history list
+	m.histories[history.SourceID] = append(m.histories[history.SourceID], &historyCopy)
+
+	// Sort by StartedAt descending (newest first)
+	sort.Slice(m.histories[history.SourceID], func(i, j int) bool {
+		return m.histories[history.SourceID][i].StartedAt.After(m.histories[history.SourceID][j].StartedAt)
+	})
+
+	return nil
+}
+
+// ListHistoriesBySource retrieves histories for a specific source
+func (m *Memory) ListHistoriesBySource(ctx context.Context, sourceID string, limit, offset int) ([]*model.History, int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	histories, ok := m.histories[sourceID]
+	if !ok || len(histories) == 0 {
+		return []*model.History{}, 0, nil
+	}
+
+	total := len(histories)
+
+	// Apply offset
+	if offset >= len(histories) {
+		return []*model.History{}, total, nil
+	}
+
+	// Calculate end index
+	end := offset + limit
+	if limit <= 0 || end > len(histories) {
+		end = len(histories)
+	}
+
+	// Return copies to prevent external modification
+	result := make([]*model.History, end-offset)
+	for i, history := range histories[offset:end] {
+		historyCopy := *history
+		if historyCopy.Errors != nil {
+			errorsCopy := make([]*model.FetchError, len(history.Errors))
+			for j, err := range history.Errors {
+				errCopy := *err
+				if errCopy.Values != nil {
+					valuesCopy := make(map[string]string, len(err.Values))
+					for k, v := range err.Values {
+						valuesCopy[k] = v
+					}
+					errCopy.Values = valuesCopy
+				}
+				errorsCopy[j] = &errCopy
+			}
+			historyCopy.Errors = errorsCopy
+		}
+		result[i] = &historyCopy
+	}
+
+	return result, total, nil
+}
+
+// GetHistory retrieves a specific history record
+func (m *Memory) GetHistory(ctx context.Context, sourceID string, historyID string) (*model.History, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	histories, ok := m.histories[sourceID]
+	if !ok {
+		return nil, interfaces.ErrHistoryNotFound
+	}
+
+	for _, history := range histories {
+		if history.ID == historyID {
+			// Return a copy to prevent external modification
+			historyCopy := *history
+			if historyCopy.Errors != nil {
+				errorsCopy := make([]*model.FetchError, len(history.Errors))
+				for i, err := range history.Errors {
+					errCopy := *err
+					if errCopy.Values != nil {
+						valuesCopy := make(map[string]string, len(err.Values))
+						for k, v := range err.Values {
+							valuesCopy[k] = v
+						}
+						errCopy.Values = valuesCopy
+					}
+					errorsCopy[i] = &errCopy
+				}
+				historyCopy.Errors = errorsCopy
+			}
+			return &historyCopy, nil
+		}
+	}
+
+	return nil, interfaces.ErrHistoryNotFound
 }

@@ -19,6 +19,7 @@ func createSources(
 	iocRepo interfaces.IoCRepository,
 	rssStateRepo rss.RSSStateRepository,
 	feedStateRepo feed.FeedStateRepository,
+	historyRepo interfaces.HistoryRepository,
 	llmClient gollem.LLMClient,
 ) []interfaces.Source {
 	var sources []interfaces.Source
@@ -28,7 +29,7 @@ func createSources(
 		if rssCfg.Disabled {
 			continue
 		}
-		src, err := rss.New(id, rssCfg, iocRepo, rssStateRepo, llmClient)
+		src, err := rss.New(id, rssCfg, iocRepo, rssStateRepo, historyRepo, llmClient)
 		if err != nil {
 			errutil.Handle(ctx, goerr.Wrap(err, "failed to create RSS source", goerr.V("source_id", id)), "skipping RSS source")
 			continue
@@ -41,7 +42,7 @@ func createSources(
 		if feedCfg.Disabled {
 			continue
 		}
-		src, err := feed.New(id, feedCfg, iocRepo, feedStateRepo, llmClient)
+		src, err := feed.New(id, feedCfg, iocRepo, feedStateRepo, historyRepo, llmClient)
 		if err != nil {
 			errutil.Handle(ctx, goerr.Wrap(err, "failed to create Feed source", goerr.V("source_id", id)), "skipping Feed source")
 			continue

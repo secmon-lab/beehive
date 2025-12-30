@@ -49,6 +49,7 @@ func TestService_FetchBinarydefenseBanlist(t *testing.T) {
 }
 
 func TestService_FetchBinarydefenseBanlist_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}

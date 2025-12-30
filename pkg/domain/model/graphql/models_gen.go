@@ -10,6 +10,35 @@ import (
 	"time"
 )
 
+type FetchError struct {
+	Message string      `json:"message"`
+	Values  []*KeyValue `json:"values"`
+}
+
+type History struct {
+	ID             string        `json:"id"`
+	SourceID       string        `json:"sourceID"`
+	SourceType     string        `json:"sourceType"`
+	Status         string        `json:"status"`
+	StartedAt      time.Time     `json:"startedAt"`
+	CompletedAt    time.Time     `json:"completedAt"`
+	ProcessingTime int           `json:"processingTime"`
+	Urls           []string      `json:"urls"`
+	ItemsFetched   int           `json:"itemsFetched"`
+	IoCsExtracted  int           `json:"ioCsExtracted"`
+	IoCsCreated    int           `json:"ioCsCreated"`
+	IoCsUpdated    int           `json:"ioCsUpdated"`
+	IoCsUnchanged  int           `json:"ioCsUnchanged"`
+	ErrorCount     int           `json:"errorCount"`
+	Errors         []*FetchError `json:"errors"`
+	CreatedAt      time.Time     `json:"createdAt"`
+}
+
+type HistoryConnection struct {
+	Items []*History `json:"items"`
+	Total int        `json:"total"`
+}
+
 type IoC struct {
 	ID          string    `json:"id"`
 	SourceID    string    `json:"sourceID"`
@@ -34,6 +63,11 @@ type IoCListOptions struct {
 	Limit     *int          `json:"limit,omitempty"`
 	SortField *IoCSortField `json:"sortField,omitempty"`
 	SortOrder *SortOrder    `json:"sortOrder,omitempty"`
+}
+
+type KeyValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type Mutation struct {

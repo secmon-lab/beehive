@@ -73,6 +73,7 @@ func TestService_FetchBlocklistDeAll(t *testing.T) {
 }
 
 func TestService_FetchBlocklistDeSSH_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -85,6 +86,7 @@ func TestService_FetchBlocklistDeSSH_E2E(t *testing.T) {
 }
 
 func TestService_FetchBlocklistDeAll_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -97,6 +99,7 @@ func TestService_FetchBlocklistDeAll_E2E(t *testing.T) {
 }
 
 func TestService_FetchBlocklistDeMail_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -109,6 +112,7 @@ func TestService_FetchBlocklistDeMail_E2E(t *testing.T) {
 }
 
 func TestService_FetchBlocklistDeApache_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -121,6 +125,7 @@ func TestService_FetchBlocklistDeApache_E2E(t *testing.T) {
 }
 
 func TestService_FetchBlocklistDeIMAP_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -133,6 +138,7 @@ func TestService_FetchBlocklistDeIMAP_E2E(t *testing.T) {
 }
 
 func TestService_FetchBlocklistDeBots_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -145,6 +151,7 @@ func TestService_FetchBlocklistDeBots_E2E(t *testing.T) {
 }
 
 func TestService_FetchBlocklistDeBruteforce_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -157,6 +164,7 @@ func TestService_FetchBlocklistDeBruteforce_E2E(t *testing.T) {
 }
 
 func TestService_FetchBlocklistDeStrongIPs_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -169,6 +177,7 @@ func TestService_FetchBlocklistDeStrongIPs_E2E(t *testing.T) {
 }
 
 func TestService_FetchBlocklistDeFTP_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
