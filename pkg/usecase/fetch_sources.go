@@ -30,7 +30,7 @@ func FetchAllSources(ctx context.Context, sources []interfaces.Source) ([]*inter
 			stats = &interfaces.FetchStats{
 				SourceID:   src.ID(),
 				SourceType: src.Type(),
-				Errors:     1,
+				ErrorCount: 1,
 			}
 		}
 

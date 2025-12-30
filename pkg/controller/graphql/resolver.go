@@ -22,3 +22,8 @@ func NewResolver(repo interfaces.Repository, uc *usecase.UseCases, sourcesConfig
 		sourcesConfigPath: sourcesConfigPath,
 	}
 }
+
+// Repository returns the repository instance
+func (r *Resolver) Repository() interfaces.Repository {
+	return r.repo
+}

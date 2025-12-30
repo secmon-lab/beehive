@@ -200,7 +200,7 @@ func printFetchResults(stats []*interfaces.FetchStats) {
 		fmt.Printf("  IoCs Created:    %d\n", s.IoCsCreated)
 		fmt.Printf("  IoCs Updated:    %d\n", s.IoCsUpdated)
 		fmt.Printf("  IoCs Unchanged:  %d\n", s.IoCsUnchanged)
-		fmt.Printf("  Errors:          %d\n", s.Errors)
+		fmt.Printf("  Errors:          %d\n", s.ErrorCount)
 		fmt.Printf("  Processing Time: %v\n", s.ProcessingTime)
 		fmt.Println()
 
@@ -209,7 +209,7 @@ func printFetchResults(stats []*interfaces.FetchStats) {
 		totalCreated += s.IoCsCreated
 		totalUpdated += s.IoCsUpdated
 		totalUnchanged += s.IoCsUnchanged
-		totalErrors += s.Errors
+		totalErrors += s.ErrorCount
 	}
 
 	fmt.Println("=== Summary ===")

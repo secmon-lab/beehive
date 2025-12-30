@@ -189,7 +189,7 @@ func (s *FeedSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) 
 				"total_iocs", len(iocsToSave),
 				"result", result,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
 		}
 
 		logger.Info("batch saved IoCs",
@@ -218,7 +218,7 @@ func (s *FeedSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) 
 				"total_inactive", len(inactiveIoCs),
 				"updated_count", inactiveResult,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
 		}
 
 		logger.Info("batch marked IoCs as inactive",
@@ -232,11 +232,11 @@ func (s *FeedSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) 
 		SourceID:      s.id,
 		LastFetchedAt: time.Now(),
 		ItemCount:     int64(len(entries)),
-		ErrorCount:    int64(stats.Errors),
+		ErrorCount:    int64(stats.ErrorCount),
 		UpdatedAt:     time.Now(),
 	}
 
-	if stats.Errors > 0 {
+	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
 	}
 

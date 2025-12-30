@@ -28,6 +28,6 @@ type FetchStats struct {
 	IoCsCreated    int
 	IoCsUpdated    int
 	IoCsUnchanged  int
-	Errors         int
+	ErrorCount     int
 	ProcessingTime time.Duration
 }

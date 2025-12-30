@@ -383,6 +383,7 @@ func TestService_FetchAbuseCHSSLBlacklist(t *testing.T) {
 }
 
 func TestService_FetchAbuseCHURLhaus_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -395,6 +396,7 @@ func TestService_FetchAbuseCHURLhaus_E2E(t *testing.T) {
 }
 
 func TestService_FetchAbuseCHThreatFox_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -407,6 +409,7 @@ func TestService_FetchAbuseCHThreatFox_E2E(t *testing.T) {
 }
 
 func TestService_FetchAbuseCHFeodotracker_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -419,6 +422,7 @@ func TestService_FetchAbuseCHFeodotracker_E2E(t *testing.T) {
 }
 
 func TestService_FetchAbuseCHSSLBlacklist_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}

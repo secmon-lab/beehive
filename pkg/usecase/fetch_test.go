@@ -16,7 +16,7 @@ func TestFetchUseCase_FetchAllSources(t *testing.T) {
 
 	t.Run("skip disabled sources", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
 
 		sources := map[string]model.Source{
 			"source1": {
@@ -36,7 +36,7 @@ func TestFetchUseCase_FetchAllSources(t *testing.T) {
 
 	t.Run("filter by tags", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
 
 		sources := map[string]model.Source{
 			"source1": {
@@ -68,13 +68,13 @@ func TestFetchUseCase_FetchAllSources(t *testing.T) {
 			gt.S(t, stat.SourceID).Equal("source1").Describe("processed source should be source1")
 			gt.S(t, stat.SourceType).Equal(string(model.SourceTypeFeed)).Describe("source type should be feed")
 			// The source will error because it's a fake URL, so we expect errors
-			gt.V(t, stat.Errors).NotEqual(0).Describe("should have errors from fake URL")
+			gt.V(t, stat.ErrorCount).NotEqual(0).Describe("should have errors from fake URL")
 		})
 	})
 
 	t.Run("handle unknown source type", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
 
 		sources := map[string]model.Source{
 			"source1": {
@@ -214,7 +214,7 @@ func TestFetchUseCase_ErrorHandling(t *testing.T) {
 
 	t.Run("continue on source fetch error", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
 
 		sources := map[string]model.Source{
 			"bad-source": {
@@ -233,7 +233,7 @@ func TestFetchUseCase_ErrorHandling(t *testing.T) {
 		gt.A(t, stats).Length(1).Describe("should have 1 stat entry for the failed source")
 		gt.A(t, stats).At(0, func(t testing.TB, stat *usecase.FetchStats) {
 			gt.S(t, stat.SourceID).Equal("bad-source").Describe("stat source ID should be bad-source")
-			gt.N(t, stat.Errors).Greater(0).Describe("should have at least 1 error")
+			gt.N(t, stat.ErrorCount).Greater(0).Describe("should have at least 1 error")
 			gt.N(t, stat.ItemsFetched).Equal(0).Describe("should have 0 items fetched")
 			gt.N(t, stat.IoCsExtracted).Equal(0).Describe("should have 0 IoCs extracted")
 		})
@@ -241,7 +241,7 @@ func TestFetchUseCase_ErrorHandling(t *testing.T) {
 
 	t.Run("handle feed without config", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
 
 		sources := map[string]model.Source{
 			"bad-feed": {
@@ -257,7 +257,7 @@ func TestFetchUseCase_ErrorHandling(t *testing.T) {
 		gt.A(t, stats).Length(1).Describe("should have 1 stat entry")
 		gt.A(t, stats).At(0, func(t testing.TB, stat *usecase.FetchStats) {
 			gt.S(t, stat.SourceID).Equal("bad-feed").Describe("stat source ID should be bad-feed")
-			gt.N(t, stat.Errors).Greater(0).Describe("should have at least 1 error from missing config")
+			gt.N(t, stat.ErrorCount).Greater(0).Describe("should have at least 1 error from missing config")
 		})
 	})
 }
@@ -273,7 +273,7 @@ func TestFetchStats(t *testing.T) {
 			IoCsUpdated:    2,
 			IoCsUnchanged:  0,
 			IoCsGeneric:    1,
-			Errors:         0,
+			ErrorCount:     0,
 			ProcessingTime: 1 * time.Second,
 		}
 
@@ -283,7 +283,7 @@ func TestFetchStats(t *testing.T) {
 		gt.N(t, stats.IoCsExtracted).Equal(8).Describe("IoCs extracted should be 8")
 		gt.N(t, stats.IoCsCreated).Equal(6).Describe("IoCs created should be 6")
 		gt.N(t, stats.IoCsUpdated).Equal(2).Describe("IoCs updated should be 2")
-		gt.N(t, stats.Errors).Equal(0).Describe("errors should be 0")
+		gt.N(t, stats.ErrorCount).Equal(0).Describe("errors should be 0")
 		gt.V(t, stats.ProcessingTime).Equal(1 * time.Second).Describe("processing time should be 1 second")
 	})
 }
@@ -291,7 +291,128 @@ func TestFetchStats(t *testing.T) {
 func TestNewFetchUseCase(t *testing.T) {
 	t.Run("create use case", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
 		gt.V(t, uc).NotNil().Describe("NewFetchUseCase should return non-nil use case")
+	})
+}
+
+func TestFetchUseCase_HistorySaving(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("save history on successful fetch", func(t *testing.T) {
+		repo := memory.New()
+		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+
+		sourceID := "test-source-" + time.Now().Format("20060102-150405.000000")
+		sources := map[string]model.Source{
+			sourceID: {
+				Type:    model.SourceTypeFeed,
+				URL:     "http://example.com/feed",
+				Enabled: true,
+				FeedConfig: &model.FeedConfig{
+					Schema: "abuse_ch_urlhaus",
+				},
+			},
+		}
+
+		// Execute fetch (will fail with HTTP error, but history should still be saved)
+		stats, err := uc.FetchAllSources(ctx, sources, nil)
+		gt.NoError(t, err)
+		gt.A(t, stats).Length(1).Describe("should have 1 stat entry")
+
+		// Verify history was saved
+		histories, err := repo.ListHistoriesBySource(ctx, sourceID, 10, 0)
+		gt.NoError(t, err)
+		gt.A(t, histories).Length(1).Describe("should have exactly 1 history entry saved")
+
+		// Verify history details
+		gt.A(t, histories).At(0, func(t testing.TB, history *model.History) {
+			gt.S(t, history.SourceID).Equal(sourceID).Describe("history source ID should match")
+			gt.V(t, history.SourceType).Equal(model.SourceTypeFeed).Describe("history source type should be feed")
+			gt.V(t, history.Status).Equal(model.FetchStatusFailure).Describe("history status should be failure (HTTP error)")
+			gt.N(t, history.ErrorCount).Greater(0).Describe("history should have at least 1 error")
+			gt.N(t, history.ItemsFetched).Equal(0).Describe("history items fetched should be 0")
+			gt.True(t, history.ProcessingTime >= 0).Describe("processing time should be >= 0")
+		})
+	})
+
+	t.Run("save history with error details", func(t *testing.T) {
+		repo := memory.New()
+		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+
+		sourceID := "test-source-" + time.Now().Format("20060102-150405.000000")
+		sources := map[string]model.Source{
+			sourceID: {
+				Type:       model.SourceTypeFeed,
+				URL:        "http://example.com/feed",
+				Enabled:    true,
+				FeedConfig: nil, // Missing config causes error
+			},
+		}
+
+		// Execute fetch (will fail immediately due to missing config)
+		stats, err := uc.FetchAllSources(ctx, sources, nil)
+		gt.NoError(t, err)
+		gt.A(t, stats).Length(1).Describe("should have 1 stat entry")
+
+		// Verify history was saved with error details
+		histories, err := repo.ListHistoriesBySource(ctx, sourceID, 10, 0)
+		gt.NoError(t, err)
+		gt.A(t, histories).Length(1).Describe("should have exactly 1 history entry")
+
+		gt.A(t, histories).At(0, func(t testing.TB, history *model.History) {
+			gt.S(t, history.SourceID).Equal(sourceID).Describe("history source ID should match")
+			gt.N(t, history.ErrorCount).Greater(0).Describe("history error count should be greater than 0")
+			gt.A(t, history.Errors).Length(1).Describe("history should have exactly 1 error entry")
+
+			// Verify error details
+			gt.A(t, history.Errors).At(0, func(t testing.TB, fetchError *model.FetchError) {
+				gt.S(t, fetchError.Message).Contains("feed config").Describe("error message should mention feed config")
+				gt.V(t, fetchError.Values).NotNil().Describe("error values should not be nil")
+			})
+		})
+	})
+
+	t.Run("history saved for each source", func(t *testing.T) {
+		repo := memory.New()
+		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+
+		timestamp := time.Now().Format("20060102-150405.000000")
+		source1ID := "test-source-1-" + timestamp
+		source2ID := "test-source-2-" + timestamp
+
+		sources := map[string]model.Source{
+			source1ID: {
+				Type:    model.SourceTypeFeed,
+				URL:     "http://example.com/feed1",
+				Enabled: true,
+				FeedConfig: &model.FeedConfig{
+					Schema: "abuse_ch_urlhaus",
+				},
+			},
+			source2ID: {
+				Type:    model.SourceTypeFeed,
+				URL:     "http://example.com/feed2",
+				Enabled: true,
+				FeedConfig: &model.FeedConfig{
+					Schema: "abuse_ch_threatfox",
+				},
+			},
+		}
+
+		// Execute fetch
+		stats, err := uc.FetchAllSources(ctx, sources, nil)
+		gt.NoError(t, err)
+		gt.A(t, stats).Length(2).Describe("should have 2 stat entries")
+
+		// Verify history for source1
+		histories1, err := repo.ListHistoriesBySource(ctx, source1ID, 10, 0)
+		gt.NoError(t, err)
+		gt.A(t, histories1).Length(1).Describe("source1 should have exactly 1 history entry")
+
+		// Verify history for source2
+		histories2, err := repo.ListHistoriesBySource(ctx, source2ID, 10, 0)
+		gt.NoError(t, err)
+		gt.A(t, histories2).Length(1).Describe("source2 should have exactly 1 history entry")
 	})
 }

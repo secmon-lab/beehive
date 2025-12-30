@@ -136,7 +136,7 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 				"source_id", s.id,
 				"url", article.Link,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
 			continue
 		}
 
@@ -147,7 +147,7 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 				"source_id", s.id,
 				"url", article.Link,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
 			continue
 		}
 
@@ -170,7 +170,7 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 				logger.Warn("failed to convert extracted IoC",
 					"source_id", s.id,
 					"error", err)
-				stats.Errors++
+				stats.ErrorCount++
 				continue
 			}
 
@@ -222,7 +222,7 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 				"total_iocs", len(iocsToSave),
 				"result", result,
 				"error", err)
-			stats.Errors++
+			stats.ErrorCount++
 		}
 
 		logger.Info("batch saved IoCs",
@@ -242,8 +242,8 @@ func (s *RSSSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) {
 		state.LastFetchedAt = time.Now()
 	}
 
-	state.ErrorCount += int64(stats.Errors)
-	if stats.Errors > 0 {
+	state.ErrorCount += int64(stats.ErrorCount)
+	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
 	} else {
 		state.LastError = ""

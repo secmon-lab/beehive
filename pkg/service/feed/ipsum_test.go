@@ -49,6 +49,7 @@ func TestService_FetchIPsumLevel3(t *testing.T) {
 }
 
 func TestService_FetchIPsumLevel3_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -61,6 +62,7 @@ func TestService_FetchIPsumLevel3_E2E(t *testing.T) {
 }
 
 func TestService_FetchIPsumLevel4_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -73,6 +75,7 @@ func TestService_FetchIPsumLevel4_E2E(t *testing.T) {
 }
 
 func TestService_FetchIPsumLevel5_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -85,6 +88,7 @@ func TestService_FetchIPsumLevel5_E2E(t *testing.T) {
 }
 
 func TestService_FetchIPsumLevel6_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -97,6 +101,7 @@ func TestService_FetchIPsumLevel6_E2E(t *testing.T) {
 }
 
 func TestService_FetchIPsumLevel7_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -109,6 +114,7 @@ func TestService_FetchIPsumLevel7_E2E(t *testing.T) {
 }
 
 func TestService_FetchIPsumLevel8_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}

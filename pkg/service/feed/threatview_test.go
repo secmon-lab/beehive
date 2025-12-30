@@ -84,6 +84,7 @@ func TestService_FetchThreatViewMD5(t *testing.T) {
 }
 
 func TestService_FetchThreatViewIOCTweets_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -95,6 +96,7 @@ func TestService_FetchThreatViewIOCTweets_E2E(t *testing.T) {
 }
 
 func TestService_FetchThreatViewCobaltStrike_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -106,6 +108,7 @@ func TestService_FetchThreatViewCobaltStrike_E2E(t *testing.T) {
 }
 
 func TestService_FetchThreatViewIPHigh_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -117,6 +120,7 @@ func TestService_FetchThreatViewIPHigh_E2E(t *testing.T) {
 }
 
 func TestService_FetchThreatViewDomainHigh_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -128,6 +132,7 @@ func TestService_FetchThreatViewDomainHigh_E2E(t *testing.T) {
 }
 
 func TestService_FetchThreatViewMD5_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -139,6 +144,7 @@ func TestService_FetchThreatViewMD5_E2E(t *testing.T) {
 }
 
 func TestService_FetchThreatViewURLHigh_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -150,6 +156,7 @@ func TestService_FetchThreatViewURLHigh_E2E(t *testing.T) {
 }
 
 func TestService_FetchThreatViewSHA_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}

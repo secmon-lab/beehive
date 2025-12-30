@@ -9,6 +9,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/fatih/color v1.18.0
 	github.com/go-chi/chi/v5 v5.2.3
+	github.com/graph-gophers/dataloader/v7 v7.1.2
 	github.com/m-mizutani/clog v0.1.0
 	github.com/m-mizutani/fireconf v0.1.1
 	github.com/m-mizutani/goerr/v2 v2.0.0

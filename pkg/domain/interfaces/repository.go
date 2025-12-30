@@ -4,4 +4,5 @@ package interfaces
 type Repository interface {
 	IoCRepository
 	SourceStateRepository
+	HistoryRepository
 }

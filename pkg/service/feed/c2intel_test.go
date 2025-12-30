@@ -85,6 +85,7 @@ func TestService_FetchC2IntelDomainList(t *testing.T) {
 }
 
 func TestService_FetchC2IntelIPList_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -97,6 +98,7 @@ func TestService_FetchC2IntelIPList_E2E(t *testing.T) {
 }
 
 func TestService_FetchC2IntelDomainList_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -109,6 +111,7 @@ func TestService_FetchC2IntelDomainList_E2E(t *testing.T) {
 }
 
 func TestService_FetchC2IntelDomainWithURL_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -121,6 +124,7 @@ func TestService_FetchC2IntelDomainWithURL_E2E(t *testing.T) {
 }
 
 func TestService_FetchC2IntelDomainWithURLWithIP_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}

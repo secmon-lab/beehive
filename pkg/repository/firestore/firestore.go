@@ -19,6 +19,8 @@ import (
 const (
 	collectionIoCs         = "iocs"
 	collectionSourceStates = "source_states"
+	collectionSources      = "sources"
+	subcollectionHistories = "histories"
 )
 
 // firestoreSourceState is the Firestore representation of SourceState
@@ -62,12 +64,103 @@ func toDomainSourceState(fs *firestoreSourceState) *model.SourceState {
 	}
 }
 
+// firestoreFetchError is the Firestore representation of FetchError
+type firestoreFetchError struct {
+	Message string            `firestore:"message"`
+	Values  map[string]string `firestore:"values"`
+}
+
+// firestoreHistory is the Firestore representation of History
+// This keeps the domain model free from infrastructure concerns
+type firestoreHistory struct {
+	ID             string                `firestore:"id"`
+	SourceID       string                `firestore:"source_id"`
+	SourceType     string                `firestore:"source_type"`
+	Status         string                `firestore:"status"`
+	StartedAt      time.Time             `firestore:"started_at"`
+	CompletedAt    time.Time             `firestore:"completed_at"`
+	ProcessingTime int64                 `firestore:"processing_time"` // nanoseconds
+	ItemsFetched   int                   `firestore:"items_fetched"`
+	IoCsExtracted  int                   `firestore:"iocs_extracted"`
+	IoCsCreated    int                   `firestore:"iocs_created"`
+	IoCsUpdated    int                   `firestore:"iocs_updated"`
+	IoCsUnchanged  int                   `firestore:"iocs_unchanged"`
+	ErrorCount     int                   `firestore:"error_count"`
+	Errors         []firestoreFetchError `firestore:"errors"`
+	CreatedAt      time.Time             `firestore:"created_at"`
+}
+
+// toFirestoreHistory converts domain model to Firestore representation
+func toFirestoreHistory(history *model.History) *firestoreHistory {
+	fh := &firestoreHistory{
+		ID:             history.ID,
+		SourceID:       history.SourceID,
+		SourceType:     string(history.SourceType),
+		Status:         string(history.Status),
+		StartedAt:      history.StartedAt,
+		CompletedAt:    history.CompletedAt,
+		ProcessingTime: int64(history.ProcessingTime),
+		ItemsFetched:   history.ItemsFetched,
+		IoCsExtracted:  history.IoCsExtracted,
+		IoCsCreated:    history.IoCsCreated,
+		IoCsUpdated:    history.IoCsUpdated,
+		IoCsUnchanged:  history.IoCsUnchanged,
+		ErrorCount:     history.ErrorCount,
+		CreatedAt:      history.CreatedAt,
+	}
+
+	if history.Errors != nil {
+		fh.Errors = make([]firestoreFetchError, len(history.Errors))
+		for i, err := range history.Errors {
+			fh.Errors[i] = firestoreFetchError{
+				Message: err.Message,
+				Values:  err.Values,
+			}
+		}
+	}
+
+	return fh
+}
+
+// toDomainHistory converts Firestore representation to domain model
+func toDomainHistory(fh *firestoreHistory) *model.History {
+	history := &model.History{
+		ID:             fh.ID,
+		SourceID:       fh.SourceID,
+		SourceType:     model.SourceType(fh.SourceType),
+		Status:         model.FetchStatus(fh.Status),
+		StartedAt:      fh.StartedAt,
+		CompletedAt:    fh.CompletedAt,
+		ProcessingTime: time.Duration(fh.ProcessingTime),
+		ItemsFetched:   fh.ItemsFetched,
+		IoCsExtracted:  fh.IoCsExtracted,
+		IoCsCreated:    fh.IoCsCreated,
+		IoCsUpdated:    fh.IoCsUpdated,
+		IoCsUnchanged:  fh.IoCsUnchanged,
+		ErrorCount:     fh.ErrorCount,
+		CreatedAt:      fh.CreatedAt,
+	}
+
+	if fh.Errors != nil {
+		history.Errors = make([]*model.FetchError, len(fh.Errors))
+		for i, err := range fh.Errors {
+			history.Errors[i] = &model.FetchError{
+				Message: err.Message,
+				Values:  err.Values,
+			}
+		}
+	}
+
+	return history
+}
+
 type Firestore struct {
 	client *firestore.Client
 }
 
 var _ interfaces.IoCRepository = &Firestore{}
 var _ interfaces.SourceStateRepository = &Firestore{}
+var _ interfaces.HistoryRepository = &Firestore{}
 var _ rss.RSSStateRepository = &Firestore{}
 var _ feed.FeedStateRepository = &Firestore{}
 
@@ -486,6 +579,44 @@ func (f *Firestore) SaveState(ctx context.Context, state *model.SourceState) err
 	return nil
 }
 
+// BatchGetStates retrieves multiple source states in a single operation using GetAll
+func (f *Firestore) BatchGetStates(ctx context.Context, sourceIDs []string) (map[string]*model.SourceState, error) {
+	if len(sourceIDs) == 0 {
+		return make(map[string]*model.SourceState), nil
+	}
+
+	// Create document references
+	docRefs := make([]*firestore.DocumentRef, len(sourceIDs))
+	for i, sourceID := range sourceIDs {
+		docRefs[i] = f.client.Collection(collectionSourceStates).Doc(sourceID)
+	}
+
+	// Batch get all documents
+	docs, err := f.client.GetAll(ctx, docRefs)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to batch get source states from firestore")
+	}
+
+	// Convert to domain model
+	result := make(map[string]*model.SourceState, len(docs))
+	for i, doc := range docs {
+		if !doc.Exists() {
+			// Skip non-existent documents
+			continue
+		}
+
+		var fsState firestoreSourceState
+		if err := doc.DataTo(&fsState); err != nil {
+			return nil, goerr.Wrap(err, "failed to unmarshal source state",
+				goerr.V("source_id", sourceIDs[i]))
+		}
+
+		result[sourceIDs[i]] = toDomainSourceState(&fsState)
+	}
+
+	return result, nil
+}
+
 // GetRSSState retrieves RSS state by source ID
 func (f *Firestore) GetRSSState(ctx context.Context, sourceID string) (*rss.RSSState, error) {
 	doc, err := f.client.Collection(collectionSourceStates).Doc(sourceID).Get(ctx)
@@ -607,4 +738,100 @@ func (f *Firestore) FindNearestIoCs(ctx context.Context, queryVector []float32, 
 	}
 
 	return iocs, nil
+}
+
+// SaveHistory saves a fetch history record to a subcollection
+func (f *Firestore) SaveHistory(ctx context.Context, history *model.History) error {
+	if history.SourceID == "" {
+		return goerr.New("source ID cannot be empty")
+	}
+	if history.ID == "" {
+		return goerr.New("history ID cannot be empty")
+	}
+
+	fh := toFirestoreHistory(history)
+
+	// Path: sources/{sourceID}/histories/{historyID}
+	docRef := f.client.Collection(collectionSources).
+		Doc(history.SourceID).
+		Collection(subcollectionHistories).
+		Doc(history.ID)
+
+	if _, err := docRef.Set(ctx, fh); err != nil {
+		return goerr.Wrap(err, "failed to save history to firestore",
+			goerr.V("source_id", history.SourceID),
+			goerr.V("history_id", history.ID))
+	}
+
+	return nil
+}
+
+// ListHistoriesBySource retrieves histories for a specific source
+func (f *Firestore) ListHistoriesBySource(ctx context.Context, sourceID string, limit, offset int) ([]*model.History, error) {
+	// Path: sources/{sourceID}/histories
+	query := f.client.Collection(collectionSources).
+		Doc(sourceID).
+		Collection(subcollectionHistories).
+		OrderBy("started_at", firestore.Desc)
+
+	// Apply offset
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+
+	// Apply limit
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	docs, err := query.Documents(ctx).GetAll()
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to list histories from firestore",
+			goerr.V("source_id", sourceID),
+			goerr.V("limit", limit),
+			goerr.V("offset", offset))
+	}
+
+	var histories []*model.History
+	for _, doc := range docs {
+		var fh firestoreHistory
+		if err := doc.DataTo(&fh); err != nil {
+			return nil, goerr.Wrap(err, "failed to decode history",
+				goerr.V("doc_id", doc.Ref.ID),
+				goerr.V("source_id", sourceID))
+		}
+		histories = append(histories, toDomainHistory(&fh))
+	}
+
+	return histories, nil
+}
+
+// GetHistory retrieves a specific history record
+func (f *Firestore) GetHistory(ctx context.Context, sourceID string, historyID string) (*model.History, error) {
+	// Path: sources/{sourceID}/histories/{historyID}
+	doc, err := f.client.Collection(collectionSources).
+		Doc(sourceID).
+		Collection(subcollectionHistories).
+		Doc(historyID).
+		Get(ctx)
+
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, goerr.Wrap(interfaces.ErrHistoryNotFound, "history not found",
+				goerr.V("source_id", sourceID),
+				goerr.V("history_id", historyID))
+		}
+		return nil, goerr.Wrap(err, "failed to get history from firestore",
+			goerr.V("source_id", sourceID),
+			goerr.V("history_id", historyID))
+	}
+
+	var fh firestoreHistory
+	if err := doc.DataTo(&fh); err != nil {
+		return nil, goerr.Wrap(err, "failed to decode history",
+			goerr.V("source_id", sourceID),
+			goerr.V("history_id", historyID))
+	}
+
+	return toDomainHistory(&fh), nil
 }

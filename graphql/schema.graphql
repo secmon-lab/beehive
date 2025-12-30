@@ -60,11 +60,48 @@ type SourceState {
   updatedAt: Time!
 }
 
+type KeyValue {
+  key: String!
+  value: String!
+}
+
+type FetchError {
+  message: String!
+  values: [KeyValue!]!
+}
+
+type History {
+  id: ID!
+  sourceID: String!
+  sourceType: String!
+  status: String!
+  startedAt: Time!
+  completedAt: Time!
+  processingTime: Int!
+
+  itemsFetched: Int!
+  ioCsExtracted: Int!
+  ioCsCreated: Int!
+  ioCsUpdated: Int!
+  ioCsUnchanged: Int!
+  errorCount: Int!
+
+  errors: [FetchError!]!
+  createdAt: Time!
+}
+
+type HistoryConnection {
+  items: [History!]!
+  total: Int!
+}
+
 type Query {
   health: String!
   listIoCs(options: IoCListOptions): IoCConnection!
   getIoC(id: ID!): IoC
   listSources: [Source!]!
+  listHistories(sourceID: String!, limit: Int, offset: Int): HistoryConnection!
+  getHistory(sourceID: String!, id: ID!): History
 }
 
 type Mutation {

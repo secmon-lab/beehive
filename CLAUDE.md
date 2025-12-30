@@ -201,6 +201,79 @@ The application follows Domain-Driven Design (DDD) with clean architecture:
 - GraphQL playground available at `/graphiql` (configurable)
 - Type-safe resolvers in `pkg/controller/graphql/`
 
+##### gqlgen Best Practices
+
+**CRITICAL**: This project uses gqlgen's standard approach - ALL resolver implementations go in `schema.resolvers.go`.
+
+1. **Workflow for adding new GraphQL features**
+   - Step 1: Edit `graphql/schema.graphql` to add new types/queries/mutations
+   - Step 2: Run `task graphql` to generate code
+   - Step 3: gqlgen creates/updates `schema.resolvers.go` with stub methods (containing `panic`)
+   - Step 4: Implement the resolver methods directly in `schema.resolvers.go` by replacing the `panic` statements
+   - Step 5: gqlgen preserves your implementations when regenerating
+
+2. **File structure**
+   - `graphql/schema.graphql` - GraphQL schema definition (you edit this)
+   - `pkg/controller/graphql/generated.go` - Generated runtime code (NEVER edit)
+   - `pkg/domain/model/graphql/models_gen.go` - Generated GraphQL models (NEVER edit)
+   - `pkg/controller/graphql/schema.resolvers.go` - Resolver implementations (YOU implement here)
+   - `pkg/controller/graphql/resolver.go` - Root resolver with dependencies (manually maintained)
+
+3. **Implementing resolvers in schema.resolvers.go**
+   - Replace `panic` statements with actual implementation
+   - Use helper functions for domain model ↔ GraphQL model conversion
+   - Keep business logic in use cases, resolvers should be thin
+   - Example:
+     ```go
+     func (r *queryResolver) ListIngestionHistories(ctx context.Context, sourceID string, limit *int, offset *int) (*graphql1.IngestionHistoryConnection, error) {
+         actualLimit := 20
+         if limit != nil {
+             actualLimit = *limit
+         }
+         histories, err := r.repo.ListHistoriesBySource(ctx, sourceID, actualLimit, 0)
+         if err != nil {
+             return nil, goerr.Wrap(err, "failed to list histories")
+         }
+         items := make([]*graphql1.IngestionHistory, len(histories))
+         for i, h := range histories {
+             items[i] = toGraphQLHistory(h)
+         }
+         return &graphql1.IngestionHistoryConnection{Items: items, Total: len(histories)}, nil
+     }
+     ```
+
+4. **Helper functions**
+   - Add conversion helper functions at the end of `schema.resolvers.go`
+   - Name them `toGraphQLXxx()` for consistency
+   - Example:
+     ```go
+     func toGraphQLHistory(h *model.History) *graphql1.IngestionHistory {
+         return &graphql1.IngestionHistory{
+             ID: h.ID,
+             SourceID: h.SourceID,
+             // ... other fields
+         }
+     }
+     ```
+
+5. **What gqlgen preserves**
+   - When you run `task graphql` again, gqlgen will:
+     - Preserve your implementations
+     - Add stubs for new resolvers
+     - Update type definitions if schema changed
+     - NOT delete your helper functions at the end of the file
+
+6. **Common mistakes to AVOID**
+   - ❌ Creating separate files like `ioc.go`, `source.go` for resolvers (causes duplicate declarations)
+   - ❌ Manually editing `generated.go` or `models_gen.go`
+   - ❌ Not running `task graphql` after schema changes
+   - ❌ Deleting `schema.resolvers.go` and recreating it manually
+
+7. **When you mess up**
+   - If you have duplicate resolver declarations, you created separate resolver files - delete them
+   - Run `task graphql` to regenerate cleanly
+   - Implement everything in `schema.resolvers.go`
+
 #### Frontend
 - React with TypeScript
 - Vite for development and building

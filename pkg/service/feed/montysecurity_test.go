@@ -73,6 +73,7 @@ func TestService_FetchMontysecurityAll(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityBruteRatel_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -84,6 +85,7 @@ func TestService_FetchMontysecurityBruteRatel_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityCobaltStrike_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -95,6 +97,7 @@ func TestService_FetchMontysecurityCobaltStrike_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecuritySliver_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -106,6 +109,7 @@ func TestService_FetchMontysecuritySliver_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityMetasploit_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -117,6 +121,7 @@ func TestService_FetchMontysecurityMetasploit_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityHavoc_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -128,6 +133,7 @@ func TestService_FetchMontysecurityHavoc_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityBurpSuite_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -139,6 +145,7 @@ func TestService_FetchMontysecurityBurpSuite_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityDeimos_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -150,6 +157,7 @@ func TestService_FetchMontysecurityDeimos_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityGoPhish_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -161,6 +169,7 @@ func TestService_FetchMontysecurityGoPhish_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityMythic_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -172,6 +181,7 @@ func TestService_FetchMontysecurityMythic_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityNimPlant_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -183,6 +193,7 @@ func TestService_FetchMontysecurityNimPlant_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityPANDA_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -194,6 +205,7 @@ func TestService_FetchMontysecurityPANDA_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityXMRig_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
@@ -205,6 +217,7 @@ func TestService_FetchMontysecurityXMRig_E2E(t *testing.T) {
 }
 
 func TestService_FetchMontysecurityAll_E2E(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TEST_E2E") == "" {
 		t.Skip("E2E test skipped (set TEST_E2E=1 to run)")
 	}
