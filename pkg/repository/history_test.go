@@ -20,7 +20,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 		// Use timestamp-based unique IDs
 		now := time.Now()
 		sourceID := now.Format("source-20060102-150405.000000")
-		historyID := model.GenerateHistoryID(sourceID, now)
+		historyID := model.GenerateHistoryID()
 
 		// Create test history
 		history := &model.History{
@@ -31,6 +31,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 			StartedAt:      now,
 			CompletedAt:    now.Add(5 * time.Second),
 			ProcessingTime: 5 * time.Second,
+			URLs:           []string{"https://example.com/rss"},
 			ItemsFetched:   10,
 			IoCsExtracted:  20,
 			IoCsCreated:    15,
@@ -70,7 +71,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 	t.Run("save history with errors", func(t *testing.T) {
 		now := time.Now()
 		sourceID := now.Format("source-20060102-150405.000000")
-		historyID := model.GenerateHistoryID(sourceID, now)
+		historyID := model.GenerateHistoryID()
 
 		// Create history with errors
 		history := &model.History{
@@ -81,6 +82,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 			StartedAt:      now,
 			CompletedAt:    now.Add(10 * time.Second),
 			ProcessingTime: 10 * time.Second,
+			URLs:           []string{"https://example.com/feed"},
 			ItemsFetched:   5,
 			IoCsExtracted:  8,
 			IoCsCreated:    5,
@@ -137,13 +139,14 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 		// Create multiple histories
 		histories := []*model.History{
 			{
-				ID:             model.GenerateHistoryID(sourceID, now.Add(-3*time.Hour)),
+				ID:             model.GenerateHistoryID(),
 				SourceID:       sourceID,
 				SourceType:     model.SourceTypeRSS,
 				Status:         model.FetchStatusSuccess,
 				StartedAt:      now.Add(-3 * time.Hour),
 				CompletedAt:    now.Add(-3 * time.Hour).Add(5 * time.Second),
 				ProcessingTime: 5 * time.Second,
+				URLs:           []string{"https://example.com/rss1"},
 				ItemsFetched:   5,
 				IoCsExtracted:  10,
 				IoCsCreated:    10,
@@ -154,13 +157,14 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 				CreatedAt:      now.Add(-3 * time.Hour),
 			},
 			{
-				ID:             model.GenerateHistoryID(sourceID, now.Add(-2*time.Hour)),
+				ID:             model.GenerateHistoryID(),
 				SourceID:       sourceID,
 				SourceType:     model.SourceTypeRSS,
 				Status:         model.FetchStatusSuccess,
 				StartedAt:      now.Add(-2 * time.Hour),
 				CompletedAt:    now.Add(-2 * time.Hour).Add(5 * time.Second),
 				ProcessingTime: 5 * time.Second,
+				URLs:           []string{"https://example.com/rss2"},
 				ItemsFetched:   3,
 				IoCsExtracted:  6,
 				IoCsCreated:    5,
@@ -171,13 +175,14 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 				CreatedAt:      now.Add(-2 * time.Hour),
 			},
 			{
-				ID:             model.GenerateHistoryID(sourceID, now.Add(-1*time.Hour)),
+				ID:             model.GenerateHistoryID(),
 				SourceID:       sourceID,
 				SourceType:     model.SourceTypeRSS,
 				Status:         model.FetchStatusSuccess,
 				StartedAt:      now.Add(-1 * time.Hour),
 				CompletedAt:    now.Add(-1 * time.Hour).Add(5 * time.Second),
 				ProcessingTime: 5 * time.Second,
+				URLs:           []string{"https://example.com/rss3"},
 				ItemsFetched:   2,
 				IoCsExtracted:  4,
 				IoCsCreated:    2,
@@ -222,7 +227,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 	t.Run("get non-existent history returns error", func(t *testing.T) {
 		now := time.Now()
 		sourceID := now.Format("nonexistent-20060102-150405.000000")
-		historyID := model.GenerateHistoryID(sourceID, now)
+		historyID := model.GenerateHistoryID()
 
 		_, err := repo.GetHistory(ctx, sourceID, historyID)
 		gt.Error(t, err)
@@ -240,13 +245,14 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 	t.Run("empty source ID returns error", func(t *testing.T) {
 		now := time.Now()
 		history := &model.History{
-			ID:             model.GenerateHistoryID("test", now),
+			ID:             model.GenerateHistoryID(),
 			SourceID:       "",
 			SourceType:     model.SourceTypeRSS,
 			Status:         model.FetchStatusSuccess,
 			StartedAt:      now,
 			CompletedAt:    now.Add(5 * time.Second),
 			ProcessingTime: 5 * time.Second,
+			URLs:           []string{},
 			CreatedAt:      now,
 		}
 
@@ -265,6 +271,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 			StartedAt:      now,
 			CompletedAt:    now.Add(5 * time.Second),
 			ProcessingTime: 5 * time.Second,
+			URLs:           []string{},
 			CreatedAt:      now,
 		}
 

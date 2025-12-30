@@ -78,6 +78,7 @@ func cmdFetch() *cli.Command {
 				interfaces.SourceStateRepository
 				rss.RSSStateRepository
 				feed.FeedStateRepository
+				interfaces.HistoryRepository
 			}
 
 			if dryRun {
@@ -122,7 +123,7 @@ func cmdFetch() *cli.Command {
 			logger.Info("initialized LLM client", "provider", llmCfg.Provider, "model", llmCfg.Model)
 
 			// Create sources from configuration
-			sources := createSources(ctx, cfg, repo, repo, repo, llmClient)
+			sources := createSources(ctx, cfg, repo, repo, repo, repo, llmClient)
 			logger.Info("created sources", "total", len(sources))
 
 			// Filter by tags if specified

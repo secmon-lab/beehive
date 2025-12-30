@@ -23,6 +23,7 @@ type History struct {
 	StartedAt      time.Time     `json:"startedAt"`
 	CompletedAt    time.Time     `json:"completedAt"`
 	ProcessingTime int           `json:"processingTime"`
+	Urls           []string      `json:"urls"`
 	ItemsFetched   int           `json:"itemsFetched"`
 	IoCsExtracted  int           `json:"ioCsExtracted"`
 	IoCsCreated    int           `json:"ioCsCreated"`

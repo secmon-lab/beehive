@@ -234,13 +234,14 @@ func TestGraphQL_ListHistories(t *testing.T) {
 	sourceID := "source-1"
 
 	history1 := &model.History{
-		ID:             model.GenerateHistoryID(sourceID, now.Add(-2*time.Hour)),
+		ID:             model.GenerateHistoryID(),
 		SourceID:       sourceID,
 		SourceType:     model.SourceTypeFeed,
 		Status:         model.FetchStatusSuccess,
 		StartedAt:      now.Add(-2 * time.Hour),
 		CompletedAt:    now.Add(-2*time.Hour + 5*time.Second),
 		ProcessingTime: 5 * time.Second,
+		URLs:           []string{"https://example.com/feed1"},
 		ItemsFetched:   100,
 		IoCsExtracted:  80,
 		IoCsCreated:    60,
@@ -252,13 +253,14 @@ func TestGraphQL_ListHistories(t *testing.T) {
 	}
 
 	history2 := &model.History{
-		ID:             model.GenerateHistoryID(sourceID, now.Add(-1*time.Hour)),
+		ID:             model.GenerateHistoryID(),
 		SourceID:       sourceID,
 		SourceType:     model.SourceTypeFeed,
 		Status:         model.FetchStatusPartialSuccess,
 		StartedAt:      now.Add(-1 * time.Hour),
 		CompletedAt:    now.Add(-1*time.Hour + 3*time.Second),
 		ProcessingTime: 3 * time.Second,
+		URLs:           []string{"https://example.com/feed2"},
 		ItemsFetched:   50,
 		IoCsExtracted:  40,
 		IoCsCreated:    30,
@@ -376,7 +378,7 @@ func TestGraphQL_GetHistory(t *testing.T) {
 	// Create test history
 	now := time.Now()
 	sourceID := "source-1"
-	historyID := model.GenerateHistoryID(sourceID, now)
+	historyID := model.GenerateHistoryID()
 
 	history := &model.History{
 		ID:             historyID,
@@ -386,6 +388,7 @@ func TestGraphQL_GetHistory(t *testing.T) {
 		StartedAt:      now,
 		CompletedAt:    now.Add(3 * time.Second),
 		ProcessingTime: 3 * time.Second,
+		URLs:           []string{"https://example.com/rss", "https://example.com/article1"},
 		ItemsFetched:   25,
 		IoCsExtracted:  20,
 		IoCsCreated:    15,

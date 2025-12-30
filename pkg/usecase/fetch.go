@@ -112,13 +112,14 @@ func (uc *FetchUseCase) FetchAllSources(ctx context.Context, sources map[string]
 
 			// Save history for the failed fetch
 			history := &model.History{
-				ID:             model.GenerateHistoryID(sourceID, time.Now()),
+				ID:             model.GenerateHistoryID(),
 				SourceID:       sourceID,
 				SourceType:     source.Type,
 				Status:         model.FetchStatusFailure,
 				StartedAt:      time.Now(),
 				CompletedAt:    time.Now(),
 				ProcessingTime: 0,
+				URLs:           []string{}, // URL unknown for failed fetch
 				ItemsFetched:   0,
 				IoCsExtracted:  0,
 				IoCsCreated:    0,
@@ -335,13 +336,14 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 
 	// Save ingestion history
 	history := &model.History{
-		ID:             model.GenerateHistoryID(sourceID, startTime),
+		ID:             model.GenerateHistoryID(),
 		SourceID:       sourceID,
 		SourceType:     model.SourceTypeRSS,
 		Status:         model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched),
 		StartedAt:      startTime,
 		CompletedAt:    time.Now(),
 		ProcessingTime: stats.ProcessingTime,
+		URLs:           []string{}, // TODO: track accessed URLs in usecase
 		ItemsFetched:   stats.ItemsFetched,
 		IoCsExtracted:  stats.IoCsExtracted,
 		IoCsCreated:    stats.IoCsCreated,
@@ -351,6 +353,12 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 		Errors:         fetchErrors,
 		CreatedAt:      time.Now(),
 	}
+
+	logger.Info("attempting to save fetch history",
+		"source_id", sourceID,
+		"history_id", history.ID,
+		"status", history.Status,
+		"items_fetched", history.ItemsFetched)
 
 	if err := uc.historyRepo.SaveHistory(ctx, history); err != nil {
 		// History save failure should not fail the fetch operation
@@ -537,13 +545,14 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 
 	// Save ingestion history
 	history := &model.History{
-		ID:             model.GenerateHistoryID(sourceID, startTime),
+		ID:             model.GenerateHistoryID(),
 		SourceID:       sourceID,
 		SourceType:     model.SourceTypeFeed,
 		Status:         model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched),
 		StartedAt:      startTime,
 		CompletedAt:    time.Now(),
 		ProcessingTime: stats.ProcessingTime,
+		URLs:           []string{}, // TODO: track accessed URLs in usecase
 		ItemsFetched:   stats.ItemsFetched,
 		IoCsExtracted:  stats.IoCsExtracted,
 		IoCsCreated:    stats.IoCsCreated,
@@ -553,6 +562,12 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 		Errors:         fetchErrors,
 		CreatedAt:      time.Now(),
 	}
+
+	logger.Info("attempting to save fetch history",
+		"source_id", sourceID,
+		"history_id", history.ID,
+		"status", history.Status,
+		"items_fetched", history.ItemsFetched)
 
 	if err := uc.historyRepo.SaveHistory(ctx, history); err != nil {
 		// History save failure should not fail the fetch operation

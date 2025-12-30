@@ -78,6 +78,7 @@ type History {
   startedAt: Time!
   completedAt: Time!
   processingTime: Int!
+  urls: [String!]!
 
   itemsFetched: Int!
   ioCsExtracted: Int!

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/m-mizutani/goerr/v2"
 )
 
@@ -24,13 +25,14 @@ type FetchError struct {
 
 // History represents the history of a single fetch operation
 type History struct {
-	ID             string        // Unique identifier (sourceID-timestamp format)
+	ID             string        // Unique identifier (UUIDv7)
 	SourceID       string        // Source identifier
 	SourceType     SourceType    // RSS or Feed
 	Status         FetchStatus   // Operation status
 	StartedAt      time.Time     // Start time
 	CompletedAt    time.Time     // Completion time
 	ProcessingTime time.Duration // Processing duration
+	URLs           []string      // URLs accessed during fetch
 
 	// Statistics (from FetchStats)
 	ItemsFetched  int // Number of items fetched
@@ -46,12 +48,9 @@ type History struct {
 	CreatedAt time.Time // Record creation time
 }
 
-// GenerateHistoryID generates a unique ID for a history record
-func GenerateHistoryID(sourceID string, startedAt time.Time) string {
-	// Use RFC3339Nano for sortable timestamp (descending order when used in reverse)
-	// Format: sourceID-timestamp
-	timestamp := startedAt.Format("20060102-150405.000000")
-	return fmt.Sprintf("%s-%s", sourceID, timestamp)
+// GenerateHistoryID generates a unique ID for a history record using UUIDv7
+func GenerateHistoryID() string {
+	return uuid.Must(uuid.NewV7()).String()
 }
 
 // DetermineFetchStatus determines the status based on error count and items fetched

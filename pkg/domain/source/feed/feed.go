@@ -27,6 +27,7 @@ type FeedSource struct {
 	// Dependencies (Feed-specific, no LLM extraction needed)
 	iocRepo     interfaces.IoCRepository
 	stateRepo   FeedStateRepository
+	historyRepo interfaces.HistoryRepository
 	feedService *feed.Service
 	extractor   *extractor.Extractor // embedding generation only
 }
@@ -37,6 +38,7 @@ func New(
 	cfg config.FeedSource,
 	iocRepo interfaces.IoCRepository,
 	stateRepo FeedStateRepository,
+	historyRepo interfaces.HistoryRepository,
 	llmClient gollem.LLMClient,
 ) (*FeedSource, error) {
 	// Config should already be validated, so Schema and Tags should be populated
@@ -52,6 +54,7 @@ func New(
 		maxItems:    cfg.MaxItems,
 		iocRepo:     iocRepo,
 		stateRepo:   stateRepo,
+		historyRepo: historyRepo,
 		feedService: feed.New(),
 		extractor:   extractor.New(llmClient),
 	}, nil
@@ -250,5 +253,34 @@ func (s *FeedSource) Fetch(ctx context.Context) (*interfaces.FetchStats, error) 
 	}
 
 	stats.ProcessingTime = time.Since(startTime)
+
+	// Save ingestion history
+	history := &model.History{
+		ID:             model.GenerateHistoryID(),
+		SourceID:       s.id,
+		SourceType:     model.SourceTypeFeed,
+		Status:         model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched),
+		StartedAt:      startTime,
+		CompletedAt:    time.Now(),
+		ProcessingTime: stats.ProcessingTime,
+		URLs:           []string{s.url},
+		ItemsFetched:   stats.ItemsFetched,
+		IoCsExtracted:  stats.IoCsExtracted,
+		IoCsCreated:    stats.IoCsCreated,
+		IoCsUpdated:    stats.IoCsUpdated,
+		IoCsUnchanged:  stats.IoCsUnchanged,
+		ErrorCount:     stats.ErrorCount,
+		Errors:         nil, // TODO: track fetch errors
+		CreatedAt:      time.Now(),
+	}
+
+	if err := s.historyRepo.SaveHistory(ctx, history); err != nil {
+		// History save failure should not fail the fetch operation
+		logger.Error("failed to save fetch history",
+			"source_id", s.id,
+			"history_id", history.ID,
+			"error", err)
+	}
+
 	return stats, nil
 }

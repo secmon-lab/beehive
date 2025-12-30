@@ -68,6 +68,7 @@ type ComplexityRoot struct {
 		SourceType     func(childComplexity int) int
 		StartedAt      func(childComplexity int) int
 		Status         func(childComplexity int) int
+		Urls           func(childComplexity int) int
 	}
 
 	HistoryConnection struct {
@@ -267,6 +268,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.History.Status(childComplexity), true
+	case "History.urls":
+		if e.complexity.History.Urls == nil {
+			break
+		}
+
+		return e.complexity.History.Urls(childComplexity), true
 
 	case "HistoryConnection.items":
 		if e.complexity.HistoryConnection.Items == nil {
@@ -710,6 +717,7 @@ type History {
   startedAt: Time!
   completedAt: Time!
   processingTime: Int!
+  urls: [String!]!
 
   itemsFetched: Int!
   ioCsExtracted: Int!
@@ -1136,6 +1144,35 @@ func (ec *executionContext) fieldContext_History_processingTime(_ context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _History_urls(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_History_urls,
+		func(ctx context.Context) (any, error) {
+			return obj.Urls, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_History_urls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "History",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _History_itemsFetched(ctx context.Context, field graphql.CollectedField, obj *graphql1.History) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1412,6 +1449,8 @@ func (ec *executionContext) fieldContext_HistoryConnection_items(_ context.Conte
 				return ec.fieldContext_History_completedAt(ctx, field)
 			case "processingTime":
 				return ec.fieldContext_History_processingTime(ctx, field)
+			case "urls":
+				return ec.fieldContext_History_urls(ctx, field)
 			case "itemsFetched":
 				return ec.fieldContext_History_itemsFetched(ctx, field)
 			case "ioCsExtracted":
@@ -2222,6 +2261,8 @@ func (ec *executionContext) fieldContext_Query_getHistory(ctx context.Context, f
 				return ec.fieldContext_History_completedAt(ctx, field)
 			case "processingTime":
 				return ec.fieldContext_History_processingTime(ctx, field)
+			case "urls":
+				return ec.fieldContext_History_urls(ctx, field)
 			case "itemsFetched":
 				return ec.fieldContext_History_itemsFetched(ctx, field)
 			case "ioCsExtracted":
@@ -4377,6 +4418,11 @@ func (ec *executionContext) _History(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "processingTime":
 			out.Values[i] = ec._History_processingTime(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "urls":
+			out.Values[i] = ec._History_urls(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
