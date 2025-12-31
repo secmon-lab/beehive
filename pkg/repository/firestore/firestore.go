@@ -18,7 +18,6 @@ import (
 
 const (
 	collectionIoCs         = "iocs"
-	collectionSourceStates = "source_states"
 	collectionSources      = "sources"
 	subcollectionHistories = "histories"
 )
@@ -540,7 +539,7 @@ func (f *Firestore) writeBatch(ctx context.Context, iocs []*model.IoC) (*interfa
 
 // GetState retrieves source state by source ID
 func (f *Firestore) GetState(ctx context.Context, sourceID string) (*model.SourceState, error) {
-	doc, err := f.client.Collection(collectionSourceStates).Doc(sourceID).Get(ctx)
+	doc, err := f.client.Collection(collectionSources).Doc(sourceID).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return nil, goerr.Wrap(interfaces.ErrSourceStateNotFound, "source state not found", goerr.V("source_id", sourceID))
@@ -570,7 +569,7 @@ func (f *Firestore) SaveState(ctx context.Context, state *model.SourceState) err
 	// Convert to Firestore representation
 	fsState := toFirestoreSourceState(state)
 
-	docRef := f.client.Collection(collectionSourceStates).Doc(state.SourceID)
+	docRef := f.client.Collection(collectionSources).Doc(state.SourceID)
 	if _, err := docRef.Set(ctx, fsState); err != nil {
 		return goerr.Wrap(err, "failed to save source state to firestore",
 			goerr.V("source_id", state.SourceID))
@@ -588,7 +587,7 @@ func (f *Firestore) BatchGetStates(ctx context.Context, sourceIDs []string) (map
 	// Create document references
 	docRefs := make([]*firestore.DocumentRef, len(sourceIDs))
 	for i, sourceID := range sourceIDs {
-		docRefs[i] = f.client.Collection(collectionSourceStates).Doc(sourceID)
+		docRefs[i] = f.client.Collection(collectionSources).Doc(sourceID)
 	}
 
 	// Batch get all documents
@@ -619,7 +618,7 @@ func (f *Firestore) BatchGetStates(ctx context.Context, sourceIDs []string) (map
 
 // GetRSSState retrieves RSS state by source ID
 func (f *Firestore) GetRSSState(ctx context.Context, sourceID string) (*rss.RSSState, error) {
-	doc, err := f.client.Collection(collectionSourceStates).Doc(sourceID).Get(ctx)
+	doc, err := f.client.Collection(collectionSources).Doc(sourceID).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return nil, goerr.Wrap(rss.ErrRSSStateNotFound, "RSS state not found", goerr.V("source_id", sourceID))
@@ -649,7 +648,7 @@ func (f *Firestore) SaveRSSState(ctx context.Context, state *rss.RSSState) error
 	// Update timestamp before saving
 	state.UpdatedAt = time.Now()
 
-	docRef := f.client.Collection(collectionSourceStates).Doc(state.SourceID)
+	docRef := f.client.Collection(collectionSources).Doc(state.SourceID)
 	if _, err := docRef.Set(ctx, state); err != nil {
 		return goerr.Wrap(err, "failed to save RSS state to firestore",
 			goerr.V("source_id", state.SourceID))
@@ -660,7 +659,7 @@ func (f *Firestore) SaveRSSState(ctx context.Context, state *rss.RSSState) error
 
 // GetFeedState retrieves Feed state by source ID
 func (f *Firestore) GetFeedState(ctx context.Context, sourceID string) (*feed.FeedState, error) {
-	doc, err := f.client.Collection(collectionSourceStates).Doc(sourceID).Get(ctx)
+	doc, err := f.client.Collection(collectionSources).Doc(sourceID).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return nil, goerr.Wrap(feed.ErrFeedStateNotFound, "Feed state not found", goerr.V("source_id", sourceID))
@@ -690,7 +689,7 @@ func (f *Firestore) SaveFeedState(ctx context.Context, state *feed.FeedState) er
 	// Update timestamp before saving
 	state.UpdatedAt = time.Now()
 
-	docRef := f.client.Collection(collectionSourceStates).Doc(state.SourceID)
+	docRef := f.client.Collection(collectionSources).Doc(state.SourceID)
 	if _, err := docRef.Set(ctx, state); err != nil {
 		return goerr.Wrap(err, "failed to save Feed state to firestore",
 			goerr.V("source_id", state.SourceID))
