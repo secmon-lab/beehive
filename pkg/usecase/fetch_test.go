@@ -16,7 +16,7 @@ func TestFetchUseCase_FetchAllSources(t *testing.T) {
 
 	t.Run("skip disabled sources", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, nil)
 
 		sources := map[string]model.Source{
 			"source1": {
@@ -36,7 +36,7 @@ func TestFetchUseCase_FetchAllSources(t *testing.T) {
 
 	t.Run("filter by tags", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, nil)
 
 		sources := map[string]model.Source{
 			"source1": {
@@ -74,7 +74,7 @@ func TestFetchUseCase_FetchAllSources(t *testing.T) {
 
 	t.Run("handle unknown source type", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, nil)
 
 		sources := map[string]model.Source{
 			"source1": {
@@ -214,7 +214,7 @@ func TestFetchUseCase_ErrorHandling(t *testing.T) {
 
 	t.Run("continue on source fetch error", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, nil)
 
 		sources := map[string]model.Source{
 			"bad-source": {
@@ -241,7 +241,7 @@ func TestFetchUseCase_ErrorHandling(t *testing.T) {
 
 	t.Run("handle feed without config", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, nil)
 
 		sources := map[string]model.Source{
 			"bad-feed": {
@@ -291,7 +291,7 @@ func TestFetchStats(t *testing.T) {
 func TestNewFetchUseCase(t *testing.T) {
 	t.Run("create use case", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, nil)
 		gt.V(t, uc).NotNil().Describe("NewFetchUseCase should return non-nil use case")
 	})
 }
@@ -301,7 +301,7 @@ func TestFetchUseCase_HistorySaving(t *testing.T) {
 
 	t.Run("save history on successful fetch", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, nil)
 
 		sourceID := "test-source-" + time.Now().Format("20060102-150405.000000")
 		sources := map[string]model.Source{
@@ -338,7 +338,7 @@ func TestFetchUseCase_HistorySaving(t *testing.T) {
 
 	t.Run("save history with error details", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, nil)
 
 		sourceID := "test-source-" + time.Now().Format("20060102-150405.000000")
 		sources := map[string]model.Source{
@@ -375,7 +375,7 @@ func TestFetchUseCase_HistorySaving(t *testing.T) {
 
 	t.Run("history saved for each source", func(t *testing.T) {
 		repo := memory.New()
-		uc := usecase.NewFetchUseCase(repo, repo, repo, nil)
+		uc := usecase.NewFetchUseCase(repo, nil)
 
 		timestamp := time.Now().Format("20060102-150405.000000")
 		source1ID := "test-source-1-" + timestamp
