@@ -174,6 +174,83 @@ func TestParsing(t *testing.T) {
 - Do not expose unnecessary methods, variables and types
 - Use `export_test.go` to expose items needed only for testing
 
+### UseCase Repository Pattern
+
+**CRITICAL**: All use cases MUST use the composite interface pattern for repository dependencies.
+
+**Required Pattern**:
+```go
+// Define a private composite interface for each usecase
+type usecaseNameRepository interface {
+    interfaces.RepositoryA
+    interfaces.RepositoryB
+    interfaces.RepositoryC
+}
+
+type UseCaseStruct struct {
+    repo usecaseNameRepository  // Single repository field
+    // ... other dependencies
+}
+
+func NewUseCase(
+    repo usecaseNameRepository,  // Single repository parameter
+    // ... other dependencies
+) *UseCaseStruct {
+    return &UseCaseStruct{
+        repo: repo,
+        // ...
+    }
+}
+```
+
+**Example** (from `pkg/usecase/fetch.go`):
+```go
+// fetchRepository defines the repository methods required by FetchUseCase
+type fetchRepository interface {
+    interfaces.IoCRepository
+    interfaces.SourceStateRepository
+    interfaces.HistoryRepository
+}
+
+type FetchUseCase struct {
+    repo        fetchRepository
+    llmClient   gollem.LLMClient
+    // ...
+}
+
+func NewFetchUseCase(
+    repo fetchRepository,
+    llmClient gollem.LLMClient,
+) *FetchUseCase {
+    return &FetchUseCase{
+        repo:      repo,
+        llmClient: llmClient,
+        // ...
+    }
+}
+```
+
+**Benefits**:
+1. **Type Safety**: Compile-time guarantee that all required methods are implemented
+2. **Prevent Missing Dependencies**: Impossible to forget passing a repository (single parameter)
+3. **Maintain Separation**: Individual repository interfaces remain independent
+4. **Flexibility**: Works with both full implementations (`interfaces.Repository`) and partial mocks for testing
+5. **Clear Dependencies**: The composite interface explicitly documents what the usecase needs
+
+**Forbidden Pattern**:
+```go
+// ❌ BAD: Multiple repository parameters
+func NewUseCase(
+    iocRepo interfaces.IoCRepository,
+    stateRepo interfaces.SourceStateRepository,
+    historyRepo interfaces.HistoryRepository,
+    llmClient gollem.LLMClient,
+) *UseCase {
+    // Risk: Can forget to pass one of the repositories
+    // Tests require repetitive code: NewUseCase(repo, repo, repo, nil)
+}
+```
+
 ## Architecture
 
 ### Core Structure

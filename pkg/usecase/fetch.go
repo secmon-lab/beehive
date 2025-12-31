@@ -16,11 +16,16 @@ import (
 	"github.com/secmon-lab/beehive/pkg/utils/logging"
 )
 
+// fetchRepository defines the repository methods required by FetchUseCase
+type fetchRepository interface {
+	interfaces.IoCRepository
+	interfaces.SourceStateRepository
+	interfaces.HistoryRepository
+}
+
 // FetchUseCase orchestrates the fetching of IoCs from various sources
 type FetchUseCase struct {
-	iocRepo     interfaces.IoCRepository
-	stateRepo   interfaces.SourceStateRepository
-	historyRepo interfaces.HistoryRepository
+	repo        fetchRepository
 	llmClient   gollem.LLMClient
 	rssService  *rss.Service
 	feedService *feed.Service
@@ -43,18 +48,14 @@ type FetchStats struct {
 
 // NewFetchUseCase creates a new fetch use case
 func NewFetchUseCase(
-	iocRepo interfaces.IoCRepository,
-	stateRepo interfaces.SourceStateRepository,
-	historyRepo interfaces.HistoryRepository,
+	repo fetchRepository,
 	llmClient gollem.LLMClient,
 ) *FetchUseCase {
 	// Initialize n-gram vectorizer for embedding generation
 	vec := vectorizer.NewNGramVectorizer()
 
 	return &FetchUseCase{
-		iocRepo:     iocRepo,
-		stateRepo:   stateRepo,
-		historyRepo: historyRepo,
+		repo:        repo,
 		llmClient:   llmClient,
 		rssService:  rss.New(),
 		feedService: feed.New(),
@@ -129,7 +130,7 @@ func (uc *FetchUseCase) FetchAllSources(ctx context.Context, sources map[string]
 				Errors:         []*model.FetchError{model.ExtractErrorInfo(err)},
 				CreatedAt:      time.Now(),
 			}
-			if histErr := uc.historyRepo.SaveHistory(ctx, history); histErr != nil {
+			if histErr := uc.repo.SaveHistory(ctx, history); histErr != nil {
 				logger.Error("failed to save fetch history",
 					"source_id", sourceID,
 					"history_id", history.ID,
@@ -156,7 +157,7 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 	var fetchErrors []*model.FetchError
 
 	// Get previous state
-	state, err := uc.stateRepo.GetState(ctx, sourceID)
+	state, err := uc.repo.GetState(ctx, sourceID)
 	if err != nil {
 		if errors.Is(err, interfaces.ErrSourceStateNotFound) {
 			// No previous state found - this is expected for first run
@@ -288,7 +289,7 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 
 	// Batch save all IoCs
 	if len(iocsToSave) > 0 {
-		result, err := uc.iocRepo.BatchUpsertIoCs(ctx, iocsToSave)
+		result, err := uc.repo.BatchUpsertIoCs(ctx, iocsToSave)
 		stats.IoCsCreated += result.Created
 		stats.IoCsUpdated += result.Updated
 		stats.IoCsUnchanged += result.Unchanged
@@ -326,7 +327,7 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 		state.LastError = ""
 	}
 
-	if err := uc.stateRepo.SaveState(ctx, state); err != nil {
+	if err := uc.repo.SaveState(ctx, state); err != nil {
 		logger.Error("failed to save source state",
 			"source_id", sourceID,
 			"error", err)
@@ -360,7 +361,7 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 		"status", history.Status,
 		"items_fetched", history.ItemsFetched)
 
-	if err := uc.historyRepo.SaveHistory(ctx, history); err != nil {
+	if err := uc.repo.SaveHistory(ctx, history); err != nil {
 		// History save failure should not fail the fetch operation
 		logger.Error("failed to save fetch history",
 			"source_id", sourceID,
@@ -409,7 +410,7 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 		"processing_entries", len(entries))
 
 	// Get existing IoCs for this source to implement differential update
-	existingIoCs, err := uc.iocRepo.ListIoCsBySource(ctx, sourceID)
+	existingIoCs, err := uc.repo.ListIoCsBySource(ctx, sourceID)
 	if err != nil {
 		logger.Warn("failed to list existing IoCs",
 			"source_id", sourceID,
@@ -473,7 +474,7 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 
 	// Batch save all active IoCs
 	if len(iocsToSave) > 0 {
-		result, err := uc.iocRepo.BatchUpsertIoCs(ctx, iocsToSave)
+		result, err := uc.repo.BatchUpsertIoCs(ctx, iocsToSave)
 		stats.IoCsCreated += result.Created
 		stats.IoCsUpdated += result.Updated
 		stats.IoCsUnchanged += result.Unchanged
@@ -506,7 +507,7 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 
 	// Batch update inactive IoCs
 	if len(inactiveIoCs) > 0 {
-		inactiveCount, err := uc.iocRepo.BatchUpsertIoCs(ctx, inactiveIoCs)
+		inactiveCount, err := uc.repo.BatchUpsertIoCs(ctx, inactiveIoCs)
 		if err != nil {
 			logger.Error("failed to batch mark IoCs as inactive",
 				"source_id", sourceID,
@@ -535,7 +536,7 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 		state.LastError = "encountered errors during fetch"
 	}
 
-	if err := uc.stateRepo.SaveState(ctx, state); err != nil {
+	if err := uc.repo.SaveState(ctx, state); err != nil {
 		logger.Error("failed to save source state",
 			"source_id", sourceID,
 			"error", err)
@@ -569,7 +570,7 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 		"status", history.Status,
 		"items_fetched", history.ItemsFetched)
 
-	if err := uc.historyRepo.SaveHistory(ctx, history); err != nil {
+	if err := uc.repo.SaveHistory(ctx, history); err != nil {
 		// History save failure should not fail the fetch operation
 		logger.Error("failed to save fetch history",
 			"source_id", sourceID,
