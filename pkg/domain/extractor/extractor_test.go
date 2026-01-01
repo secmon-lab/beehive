@@ -258,12 +258,12 @@ func TestExtractor_RealLLM(t *testing.T) {
 		// Expected malicious IoCs that MUST be extracted (actual attack infrastructure)
 		expectedIoCs := map[string]string{
 			// C2 Infrastructure
-			"malicious-c2-server.example.com":                   "domain",
+			"malicious-c2-server.example.com":                  "domain",
 			"http://malicious-c2-server.example.com/api/exfil": "url",
-			"evil-cdn.attackdomain.ru":                          "domain",
-			"https://evil-cdn.attackdomain.ru/payload.sh":       "url",
-			"data-collector.badactor.xyz":                       "domain",
-			"https://data-collector.badactor.xyz/collect":       "url",
+			"evil-cdn.attackdomain.ru":                         "domain",
+			"https://evil-cdn.attackdomain.ru/payload.sh":      "url",
+			"data-collector.badactor.xyz":                      "domain",
+			"https://data-collector.badactor.xyz/collect":      "url",
 
 			// Malware Hash
 			"a1b2c3d4e5f6789012345678901234567890123456789012345678901234": "sha256",

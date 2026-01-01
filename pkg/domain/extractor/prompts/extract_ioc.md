@@ -104,17 +104,17 @@ These are URLs cited in the article as information sources, NOT attack infrastru
 
 **Why NOT extract:** This is Microsoft's official advisory page, a legitimate reference. Do NOT extract the URL, and do NOT extract the CVE identifier - CVEs are vulnerability references, not IoCs.
 
-**Example 2b:**
+**Example 3:**
 > "For details, see https://nvd.nist.gov/vuln/detail/CVE-2025-30066"
 
 **Why NOT extract:** NVD (NIST Vulnerability Database) is a reference database, not malicious infrastructure. Do NOT extract CVE identifiers - they are vulnerability references, not threats.
 
-**Example 3:**
+**Example 4:**
 > "As reported by Wiz security researchers at https://www.wiz.io/blog/github-action-supply-chain-attack-cve-2025-30066"
 
 **Why NOT extract:** Wiz is the security company DISCOVERING the attack, not the attacker. This is citation of their research.
 
-**Example 4:**
+**Example 5:**
 > "For more details, see Unit 42's analysis at https://unit42.paloaltonetworks.com/..."
 
 **Why NOT extract:** Unit 42 is Palo Alto Networks' threat research team. This is a reference, not a threat.
