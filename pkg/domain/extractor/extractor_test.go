@@ -21,6 +21,9 @@ var certificateValidationArticle string
 //go:embed testdata/apt_group_analysis.md
 var aptGroupAnalysisArticle string
 
+//go:embed testdata/reference_urls_article.md
+var referenceURLsArticle string
+
 func TestExtractor_RealLLM(t *testing.T) {
 	projectID := os.Getenv("TEST_GEMINI_PROJECT")
 	location := os.Getenv("TEST_GEMINI_LOCATION")
@@ -246,5 +249,79 @@ func TestExtractor_RealLLM(t *testing.T) {
 		}
 
 		t.Logf("Extracted %d IoCs, expected %d", len(extractedMap), len(expectedIoCs))
+	})
+
+	t.Run("reference URLs should not be extracted as IoCs", func(t *testing.T) {
+		extracted, err := ext.ExtractFromArticle(ctx, "Supply Chain Attack on Popular GitHub Action", referenceURLsArticle)
+		gt.NoError(t, err)
+
+		// Expected malicious IoCs that MUST be extracted (actual attack infrastructure)
+		expectedIoCs := map[string]string{
+			// C2 Infrastructure
+			"malicious-c2-server.example.com":                  "domain",
+			"http://malicious-c2-server.example.com/api/exfil": "url",
+			"evil-cdn.attackdomain.ru":                         "domain",
+			"https://evil-cdn.attackdomain.ru/payload.sh":      "url",
+			"data-collector.badactor.xyz":                      "domain",
+			"https://data-collector.badactor.xyz/collect":      "url",
+
+			// Malware Hash
+			"a1b2c3d4e5f6789012345678901234567890123456789012345678901234": "sha256",
+		}
+
+		// Forbidden indicators (reference URLs) that must NOT be extracted
+		forbiddenIndicators := []string{
+			// Security vendor blogs
+			"wiz.io/blog",
+			"akamai.com/blog",
+			"unit42.paloaltonetworks.com",
+			"crowdstrike.com/blog",
+
+			// Official advisories
+			"msrc.microsoft.com",
+			"microsoft.com/security",
+
+			// GitHub/NIST references
+			"github.com/advisories",
+			"nvd.nist.gov",
+		}
+
+		// Build map of extracted IoCs
+		extractedMap := make(map[string]string)
+		for _, ioc := range extracted {
+			extractedMap[ioc.Value] = ioc.Type
+			t.Logf("Extracted: type=%s value=%s description=%s",
+				ioc.Type, ioc.Value, ioc.Description)
+		}
+
+		// Verify ALL expected IoCs were extracted
+		for value, expectedType := range expectedIoCs {
+			extractedType, found := extractedMap[value]
+			if !found {
+				t.Errorf("Expected malicious IoC not extracted: value=%s type=%s", value, expectedType)
+			} else if extractedType != expectedType {
+				t.Errorf("IoC extracted with wrong type: value=%s expected_type=%s actual_type=%s",
+					value, expectedType, extractedType)
+			}
+		}
+
+		// Verify NO forbidden reference URLs were extracted
+		for _, forbidden := range forbiddenIndicators {
+			for extractedValue := range extractedMap {
+				if strings.Contains(extractedValue, forbidden) {
+					t.Errorf("Forbidden reference URL extracted as IoC: %s (contains %s) - this is a security vendor/advisory, not attack infrastructure",
+						extractedValue, forbidden)
+				}
+			}
+		}
+
+		// Additional validation: ensure we're not extracting CVE identifiers or CVE database URLs
+		for extractedValue := range extractedMap {
+			if strings.Contains(strings.ToUpper(extractedValue), "CVE-") {
+				t.Errorf("CVE-related content incorrectly extracted: %s - CVE identifiers and CVE database URLs should NOT be extracted", extractedValue)
+			}
+		}
+
+		t.Logf("Extracted %d IoCs, expected %d malicious indicators", len(extractedMap), len(expectedIoCs))
 	})
 }
