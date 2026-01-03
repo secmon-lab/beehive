@@ -64,9 +64,9 @@ func NewFetchUseCase(
 }
 
 // FetchAllSources fetches IoCs from all enabled sources, optionally filtered by tags
-func (uc *FetchUseCase) FetchAllSources(ctx context.Context, sources map[string]model.Source, tags []string) ([]*FetchStats, error) {
+func (uc *FetchUseCase) FetchAllSources(ctx context.Context, sources map[string]model.Source, tags []string) ([]*model.History, error) {
 	logger := logging.From(ctx)
-	var allStats []*FetchStats
+	var allHistories []*model.History
 
 	for sourceID, source := range sources {
 		// Skip disabled sources
@@ -86,14 +86,14 @@ func (uc *FetchUseCase) FetchAllSources(ctx context.Context, sources map[string]
 
 		logger.Info("fetching from source", "source_id", sourceID, "type", source.Type)
 
-		var stats *FetchStats
+		var history *model.History
 		var err error
 
 		switch source.Type {
 		case model.SourceTypeRSS:
-			stats, err = uc.fetchRSS(ctx, sourceID, &source)
+			history, err = uc.fetchRSS(ctx, sourceID, &source)
 		case model.SourceTypeFeed:
-			stats, err = uc.fetchFeed(ctx, sourceID, &source)
+			history, err = uc.fetchFeed(ctx, sourceID, &source)
 		default:
 			logger.Warn("unknown source type", "source_id", sourceID, "type", source.Type)
 			continue
@@ -104,15 +104,8 @@ func (uc *FetchUseCase) FetchAllSources(ctx context.Context, sources map[string]
 				"source_id", sourceID,
 				"error", err)
 			// Continue with other sources even if one fails
-			// Create stats with error information
-			stats = &FetchStats{
-				SourceID:   sourceID,
-				SourceType: string(source.Type),
-				ErrorCount: 1,
-			}
-
-			// Save history for the failed fetch
-			history := &model.History{
+			// Create history for the failed fetch
+			history = &model.History{
 				ID:             model.GenerateHistoryID(),
 				SourceID:       sourceID,
 				SourceType:     source.Type,
@@ -138,14 +131,14 @@ func (uc *FetchUseCase) FetchAllSources(ctx context.Context, sources map[string]
 			}
 		}
 
-		allStats = append(allStats, stats)
+		allHistories = append(allHistories, history)
 	}
 
-	return allStats, nil
+	return allHistories, nil
 }
 
 // fetchRSS fetches and processes IoCs from an RSS source
-func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *model.Source) (*FetchStats, error) {
+func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *model.Source) (*model.History, error) {
 	logger := logging.From(ctx)
 	startTime := time.Now()
 	stats := &FetchStats{
@@ -167,14 +160,14 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 			}
 		} else {
 			// Unexpected error - fail fast to avoid re-processing
-			return stats, goerr.Wrap(err, "failed to get source state")
+			return nil, goerr.Wrap(err, "failed to get source state")
 		}
 	}
 
 	// Fetch RSS feed
 	articles, err := uc.rssService.FetchFeed(ctx, source.URL)
 	if err != nil {
-		return stats, goerr.Wrap(err, "failed to fetch RSS feed",
+		return nil, goerr.Wrap(err, "failed to fetch RSS feed",
 			goerr.V("source_id", sourceID),
 			goerr.V("url", source.URL))
 	}
@@ -312,24 +305,33 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 	}
 
 	// Update source state
+	state.LastFetchedAt = time.Now()
 	if len(newArticles) > 0 {
 		latestArticle := rss.GetLatestArticle(newArticles)
 		state.LastItemID = latestArticle.GUID
 		state.LastItemDate = latestArticle.PublishedAt
-		state.ItemCount += int64(len(newArticles))
-		state.LastFetchedAt = time.Now()
 	}
+	state.ItemCount += int64(len(newArticles))
 
 	state.ErrorCount += int64(stats.ErrorCount)
+	state.LastStatus = string(model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched))
 	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
 	} else {
 		state.LastError = ""
 	}
 
+	// Ensure SourceID is set (should already be set from GetState or initialization)
+	if state.SourceID == "" {
+		logger.Warn("state.SourceID is empty, setting it",
+			"source_id", sourceID)
+		state.SourceID = sourceID
+	}
+
 	if err := uc.repo.SaveState(ctx, state); err != nil {
 		logger.Error("failed to save source state",
 			"source_id", sourceID,
+			"state_source_id", state.SourceID,
 			"error", err)
 	}
 
@@ -369,11 +371,11 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 			"error", err)
 	}
 
-	return stats, nil
+	return history, nil
 }
 
 // fetchFeed fetches and processes IoCs from a threat intelligence feed
-func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *model.Source) (*FetchStats, error) {
+func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *model.Source) (*model.History, error) {
 	logger := logging.From(ctx)
 	startTime := time.Now()
 	stats := &FetchStats{
@@ -385,13 +387,28 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 	var fetchErrors []*model.FetchError
 
 	if source.FeedConfig == nil || source.FeedConfig.Schema == "" {
-		return stats, goerr.New("feed config not specified", goerr.V("source_id", sourceID))
+		return nil, goerr.New("feed config not specified", goerr.V("source_id", sourceID))
+	}
+
+	// Get previous state
+	state, err := uc.repo.GetState(ctx, sourceID)
+	if err != nil {
+		if errors.Is(err, interfaces.ErrSourceStateNotFound) {
+			// No previous state found - this is expected for first run
+			logger.Info("no previous state found, starting fresh", "source_id", sourceID)
+			state = &model.SourceState{
+				SourceID: sourceID,
+			}
+		} else {
+			// Unexpected error - fail fast to avoid re-processing
+			return nil, goerr.Wrap(err, "failed to get source state")
+		}
 	}
 
 	// Fetch feed entries
 	entries, err := uc.feedService.FetchFeed(ctx, source.URL, source.FeedConfig.Schema)
 	if err != nil {
-		return stats, goerr.Wrap(err, "failed to fetch feed",
+		return nil, goerr.Wrap(err, "failed to fetch feed",
 			goerr.V("source_id", sourceID),
 			goerr.V("url", source.URL),
 			goerr.V("schema", source.FeedConfig.Schema))
@@ -525,20 +542,28 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 	}
 
 	// Update source state
-	state := &model.SourceState{
-		SourceID:      sourceID,
-		LastFetchedAt: time.Now(),
-		ItemCount:     int64(len(entries)),
-		ErrorCount:    int64(stats.ErrorCount),
-	}
+	state.LastFetchedAt = time.Now()
+	state.ItemCount += int64(stats.ItemsFetched)
+	state.ErrorCount += int64(stats.ErrorCount)
+	state.LastStatus = string(model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched))
 
 	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
+	} else {
+		state.LastError = ""
+	}
+
+	// Ensure SourceID is set (defensive check)
+	if state.SourceID == "" {
+		logger.Warn("state.SourceID is empty, setting it",
+			"source_id", sourceID)
+		state.SourceID = sourceID
 	}
 
 	if err := uc.repo.SaveState(ctx, state); err != nil {
 		logger.Error("failed to save source state",
 			"source_id", sourceID,
+			"state_source_id", state.SourceID,
 			"error", err)
 	}
 
@@ -578,7 +603,73 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 			"error", err)
 	}
 
-	return stats, nil
+	return history, nil
+}
+
+// FetchSourceByID executes fetch for a specific source ID
+func (uc *FetchUseCase) FetchSourceByID(ctx context.Context, sourcesMap map[string]model.Source, sourceID string) (*model.History, error) {
+	logger := logging.From(ctx)
+
+	// Find the source configuration
+	source, ok := sourcesMap[sourceID]
+	if !ok {
+		return nil, goerr.New("source not found", goerr.V("source_id", sourceID))
+	}
+
+	logger.Info("fetching from source", "source_id", sourceID, "type", source.Type)
+
+	var history *model.History
+	var err error
+
+	switch source.Type {
+	case model.SourceTypeRSS:
+		history, err = uc.fetchRSS(ctx, sourceID, &source)
+	case model.SourceTypeFeed:
+		history, err = uc.fetchFeed(ctx, sourceID, &source)
+	default:
+		return nil, goerr.New("unknown source type",
+			goerr.V("source_id", sourceID),
+			goerr.V("type", source.Type))
+	}
+
+	if err != nil {
+		logger.Error("failed to fetch from source",
+			"source_id", sourceID,
+			"error", err)
+
+		// Create history for failed fetch
+		failedHistory := &model.History{
+			ID:             model.GenerateHistoryID(),
+			SourceID:       sourceID,
+			SourceType:     source.Type,
+			Status:         model.FetchStatusFailure,
+			StartedAt:      time.Now(),
+			CompletedAt:    time.Now(),
+			ProcessingTime: 0,
+			URLs:           []string{},
+			ItemsFetched:   0,
+			IoCsExtracted:  0,
+			IoCsCreated:    0,
+			IoCsUpdated:    0,
+			IoCsUnchanged:  0,
+			ErrorCount:     1,
+			Errors:         []*model.FetchError{model.ExtractErrorInfo(err)},
+			CreatedAt:      time.Now(),
+		}
+
+		if histErr := uc.repo.SaveHistory(ctx, failedHistory); histErr != nil {
+			logger.Error("failed to save fetch history",
+				"source_id", sourceID,
+				"history_id", failedHistory.ID,
+				"error", histErr)
+			return nil, goerr.Wrap(histErr, "failed to save fetch history")
+		}
+
+		return failedHistory, nil
+	}
+
+	// Return the history created by fetchRSS or fetchFeed
+	return history, nil
 }
 
 // hasAnyTag checks if slice a contains any element from slice b

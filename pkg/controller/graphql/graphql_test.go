@@ -54,7 +54,9 @@ func executeGraphQL(t *testing.T, server *httpcontroller.Server, query string, v
 func TestGraphQL_Health(t *testing.T) {
 	repo := memory.New()
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	fetchUC := usecase.NewFetchUseCase(repo, nil)
+	resolver, err := gqlcontroller.NewResolver(repo, uc, fetchUC, "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `query { health }`
@@ -65,7 +67,7 @@ func TestGraphQL_Health(t *testing.T) {
 	var data struct {
 		Health string `json:"health"`
 	}
-	err := json.Unmarshal(resp.Data, &data)
+	err = json.Unmarshal(resp.Data, &data)
 	gt.NoError(t, err)
 	gt.S(t, data.Health).Equal("OK").Describe("health check should return OK")
 }
@@ -107,7 +109,8 @@ func TestGraphQL_ListIoCs(t *testing.T) {
 	}
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	resolver, err := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -142,7 +145,7 @@ func TestGraphQL_ListIoCs(t *testing.T) {
 			} `json:"items"`
 		} `json:"listIoCs"`
 	}
-	err := json.Unmarshal(resp.Data, &data)
+	err = json.Unmarshal(resp.Data, &data)
 	gt.NoError(t, err)
 
 	gt.N(t, data.ListIoCs.Total).Equal(2).Describe("total should be 2")
@@ -184,7 +187,8 @@ func TestGraphQL_GetIoC(t *testing.T) {
 	gt.NoError(t, err)
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	resolver, err := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -279,7 +283,8 @@ func TestGraphQL_ListHistories(t *testing.T) {
 	gt.NoError(t, err)
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	resolver, err := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -317,7 +322,7 @@ func TestGraphQL_ListHistories(t *testing.T) {
 
 	var data struct {
 		ListHistories struct {
-			Total int `json:"total"`
+			Total *int `json:"total"`
 			Items []struct {
 				ID            string `json:"id"`
 				SourceID      string `json:"sourceID"`
@@ -341,7 +346,7 @@ func TestGraphQL_ListHistories(t *testing.T) {
 	err = json.Unmarshal(resp.Data, &data)
 	gt.NoError(t, err)
 
-	gt.N(t, data.ListHistories.Total).Equal(2).Describe("total should be 2")
+	// Total is not computed for performance reasons
 	gt.A(t, data.ListHistories.Items).Length(2).Describe("should have 2 items")
 
 	// Verify histories are sorted by newest first
@@ -403,7 +408,8 @@ func TestGraphQL_GetHistory(t *testing.T) {
 	gt.NoError(t, err)
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	resolver, err := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `

@@ -101,12 +101,14 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		Noop func(childComplexity int) int
+		FetchSource func(childComplexity int, sourceID string) int
+		Noop        func(childComplexity int) int
 	}
 
 	Query struct {
 		GetHistory    func(childComplexity int, sourceID string, id string) int
 		GetIoC        func(childComplexity int, id string) int
+		GetSource     func(childComplexity int, id string) int
 		Health        func(childComplexity int) int
 		ListHistories func(childComplexity int, sourceID string, limit *int, offset *int) int
 		ListIoCs      func(childComplexity int, options *graphql1.IoCListOptions) int
@@ -114,12 +116,15 @@ type ComplexityRoot struct {
 	}
 
 	Source struct {
-		Enabled func(childComplexity int) int
-		ID      func(childComplexity int) int
-		State   func(childComplexity int) int
-		Tags    func(childComplexity int) int
-		Type    func(childComplexity int) int
-		URL     func(childComplexity int) int
+		Description       func(childComplexity int) int
+		Enabled           func(childComplexity int) int
+		ID                func(childComplexity int) int
+		Schema            func(childComplexity int) int
+		SchemaDescription func(childComplexity int) int
+		State             func(childComplexity int) int
+		Tags              func(childComplexity int) int
+		Type              func(childComplexity int) int
+		URL               func(childComplexity int) int
 	}
 
 	SourceState struct {
@@ -129,6 +134,7 @@ type ComplexityRoot struct {
 		LastFetchedAt func(childComplexity int) int
 		LastItemDate  func(childComplexity int) int
 		LastItemID    func(childComplexity int) int
+		LastStatus    func(childComplexity int) int
 		SourceID      func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
 	}
@@ -136,12 +142,14 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	Noop(ctx context.Context) (*bool, error)
+	FetchSource(ctx context.Context, sourceID string) (*graphql1.History, error)
 }
 type QueryResolver interface {
 	Health(ctx context.Context) (string, error)
 	ListIoCs(ctx context.Context, options *graphql1.IoCListOptions) (*graphql1.IoCConnection, error)
 	GetIoC(ctx context.Context, id string) (*graphql1.IoC, error)
 	ListSources(ctx context.Context) ([]*graphql1.Source, error)
+	GetSource(ctx context.Context, id string) (*graphql1.Source, error)
 	ListHistories(ctx context.Context, sourceID string, limit *int, offset *int) (*graphql1.HistoryConnection, error)
 	GetHistory(ctx context.Context, sourceID string, id string) (*graphql1.History, error)
 }
@@ -381,6 +389,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.KeyValue.Value(childComplexity), true
 
+	case "Mutation.fetchSource":
+		if e.complexity.Mutation.FetchSource == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_fetchSource_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.FetchSource(childComplexity, args["sourceID"].(string)), true
 	case "Mutation.noop":
 		if e.complexity.Mutation.Noop == nil {
 			break
@@ -410,6 +429,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.GetIoC(childComplexity, args["id"].(string)), true
+	case "Query.getSource":
+		if e.complexity.Query.GetSource == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getSource_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetSource(childComplexity, args["id"].(string)), true
 	case "Query.health":
 		if e.complexity.Query.Health == nil {
 			break
@@ -445,6 +475,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Query.ListSources(childComplexity), true
 
+	case "Source.description":
+		if e.complexity.Source.Description == nil {
+			break
+		}
+
+		return e.complexity.Source.Description(childComplexity), true
 	case "Source.enabled":
 		if e.complexity.Source.Enabled == nil {
 			break
@@ -457,6 +493,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Source.ID(childComplexity), true
+	case "Source.schema":
+		if e.complexity.Source.Schema == nil {
+			break
+		}
+
+		return e.complexity.Source.Schema(childComplexity), true
+	case "Source.schemaDescription":
+		if e.complexity.Source.SchemaDescription == nil {
+			break
+		}
+
+		return e.complexity.Source.SchemaDescription(childComplexity), true
 	case "Source.state":
 		if e.complexity.Source.State == nil {
 			break
@@ -518,6 +566,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SourceState.LastItemID(childComplexity), true
+	case "SourceState.lastStatus":
+		if e.complexity.SourceState.LastStatus == nil {
+			break
+		}
+
+		return e.complexity.SourceState.LastStatus(childComplexity), true
 	case "SourceState.sourceID":
 		if e.complexity.SourceState.SourceID == nil {
 			break
@@ -683,6 +737,9 @@ type Source {
   id: ID!
   type: String!
   url: String!
+  schema: String
+  schemaDescription: String
+  description: String
   tags: [String!]!
   enabled: Boolean!
   state: SourceState
@@ -695,8 +752,9 @@ type SourceState {
   lastItemDate: Time
   itemCount: Int!
   errorCount: Int!
+  lastStatus: String
   lastError: String
-  updatedAt: Time!
+  updatedAt: Time
 }
 
 type KeyValue {
@@ -732,7 +790,7 @@ type History {
 
 type HistoryConnection {
   items: [History!]!
-  total: Int!
+  total: Int
 }
 
 type Query {
@@ -740,12 +798,14 @@ type Query {
   listIoCs(options: IoCListOptions): IoCConnection!
   getIoC(id: ID!): IoC
   listSources: [Source!]!
+  getSource(id: ID!): Source
   listHistories(sourceID: String!, limit: Int, offset: Int): HistoryConnection!
   getHistory(sourceID: String!, id: ID!): History
 }
 
 type Mutation {
   noop: Boolean
+  fetchSource(sourceID: String!): History!
 }
 `, BuiltIn: false},
 }
@@ -754,6 +814,17 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_fetchSource_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sourceID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sourceID"] = arg0
+	return args, nil
+}
 
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
@@ -783,6 +854,17 @@ func (ec *executionContext) field_Query_getHistory_args(ctx context.Context, raw
 }
 
 func (ec *executionContext) field_Query_getIoC_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_getSource_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
@@ -1484,9 +1566,9 @@ func (ec *executionContext) _HistoryConnection_total(ctx context.Context, field 
 			return obj.Total, nil
 		},
 		nil,
-		ec.marshalNInt2int,
+		ec.marshalOInt2ᚖint,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -1991,6 +2073,81 @@ func (ec *executionContext) fieldContext_Mutation_noop(_ context.Context, field 
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_fetchSource(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_fetchSource,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().FetchSource(ctx, fc.Args["sourceID"].(string))
+		},
+		nil,
+		ec.marshalNHistory2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistory,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_fetchSource(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_History_id(ctx, field)
+			case "sourceID":
+				return ec.fieldContext_History_sourceID(ctx, field)
+			case "sourceType":
+				return ec.fieldContext_History_sourceType(ctx, field)
+			case "status":
+				return ec.fieldContext_History_status(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_History_startedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_History_completedAt(ctx, field)
+			case "processingTime":
+				return ec.fieldContext_History_processingTime(ctx, field)
+			case "urls":
+				return ec.fieldContext_History_urls(ctx, field)
+			case "itemsFetched":
+				return ec.fieldContext_History_itemsFetched(ctx, field)
+			case "ioCsExtracted":
+				return ec.fieldContext_History_ioCsExtracted(ctx, field)
+			case "ioCsCreated":
+				return ec.fieldContext_History_ioCsCreated(ctx, field)
+			case "ioCsUpdated":
+				return ec.fieldContext_History_ioCsUpdated(ctx, field)
+			case "ioCsUnchanged":
+				return ec.fieldContext_History_ioCsUnchanged(ctx, field)
+			case "errorCount":
+				return ec.fieldContext_History_errorCount(ctx, field)
+			case "errors":
+				return ec.fieldContext_History_errors(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_History_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type History", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_fetchSource_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_health(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2162,6 +2319,12 @@ func (ec *executionContext) fieldContext_Query_listSources(_ context.Context, fi
 				return ec.fieldContext_Source_type(ctx, field)
 			case "url":
 				return ec.fieldContext_Source_url(ctx, field)
+			case "schema":
+				return ec.fieldContext_Source_schema(ctx, field)
+			case "schemaDescription":
+				return ec.fieldContext_Source_schemaDescription(ctx, field)
+			case "description":
+				return ec.fieldContext_Source_description(ctx, field)
 			case "tags":
 				return ec.fieldContext_Source_tags(ctx, field)
 			case "enabled":
@@ -2171,6 +2334,67 @@ func (ec *executionContext) fieldContext_Query_listSources(_ context.Context, fi
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Source", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getSource(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_getSource,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().GetSource(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOSource2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSource,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_getSource(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Source_id(ctx, field)
+			case "type":
+				return ec.fieldContext_Source_type(ctx, field)
+			case "url":
+				return ec.fieldContext_Source_url(ctx, field)
+			case "schema":
+				return ec.fieldContext_Source_schema(ctx, field)
+			case "schemaDescription":
+				return ec.fieldContext_Source_schemaDescription(ctx, field)
+			case "description":
+				return ec.fieldContext_Source_description(ctx, field)
+			case "tags":
+				return ec.fieldContext_Source_tags(ctx, field)
+			case "enabled":
+				return ec.fieldContext_Source_enabled(ctx, field)
+			case "state":
+				return ec.fieldContext_Source_state(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Source", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getSource_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2492,6 +2716,93 @@ func (ec *executionContext) fieldContext_Source_url(_ context.Context, field gra
 	return fc, nil
 }
 
+func (ec *executionContext) _Source_schema(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_schema,
+		func(ctx context.Context) (any, error) {
+			return obj.Schema, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_schema(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_schemaDescription(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_schemaDescription,
+		func(ctx context.Context) (any, error) {
+			return obj.SchemaDescription, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_schemaDescription(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_description(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Source_tags(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2586,6 +2897,8 @@ func (ec *executionContext) fieldContext_Source_state(_ context.Context, field g
 				return ec.fieldContext_SourceState_itemCount(ctx, field)
 			case "errorCount":
 				return ec.fieldContext_SourceState_errorCount(ctx, field)
+			case "lastStatus":
+				return ec.fieldContext_SourceState_lastStatus(ctx, field)
 			case "lastError":
 				return ec.fieldContext_SourceState_lastError(ctx, field)
 			case "updatedAt":
@@ -2771,6 +3084,35 @@ func (ec *executionContext) fieldContext_SourceState_errorCount(_ context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _SourceState_lastStatus(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceState_lastStatus,
+		func(ctx context.Context) (any, error) {
+			return obj.LastStatus, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceState_lastStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SourceState_lastError(ctx context.Context, field graphql.CollectedField, obj *graphql1.SourceState) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2810,9 +3152,9 @@ func (ec *executionContext) _SourceState_updatedAt(ctx context.Context, field gr
 			return obj.UpdatedAt, nil
 		},
 		nil,
-		ec.marshalNTime2timeᚐTime,
+		ec.marshalOTime2ᚖtimeᚐTime,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -4507,9 +4849,6 @@ func (ec *executionContext) _HistoryConnection(ctx context.Context, sel ast.Sele
 			}
 		case "total":
 			out.Values[i] = ec._HistoryConnection_total(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4730,6 +5069,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_noop(ctx, field)
 			})
+		case "fetchSource":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_fetchSource(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4857,6 +5203,25 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getSource":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getSource(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "listHistories":
 			field := field
 
@@ -4955,6 +5320,12 @@ func (ec *executionContext) _Source(ctx context.Context, sel ast.SelectionSet, o
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "schema":
+			out.Values[i] = ec._Source_schema(ctx, field, obj)
+		case "schemaDescription":
+			out.Values[i] = ec._Source_schemaDescription(ctx, field, obj)
+		case "description":
+			out.Values[i] = ec._Source_description(ctx, field, obj)
 		case "tags":
 			out.Values[i] = ec._Source_tags(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -5022,13 +5393,12 @@ func (ec *executionContext) _SourceState(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "lastStatus":
+			out.Values[i] = ec._SourceState_lastStatus(ctx, field, obj)
 		case "lastError":
 			out.Values[i] = ec._SourceState_lastError(ctx, field, obj)
 		case "updatedAt":
 			out.Values[i] = ec._SourceState_updatedAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5455,6 +5825,10 @@ func (ec *executionContext) marshalNFetchError2ᚖgithubᚗcomᚋsecmonᚑlabᚋ
 		return graphql.Null
 	}
 	return ec._FetchError(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNHistory2githubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistory(ctx context.Context, sel ast.SelectionSet, v graphql1.History) graphql.Marshaler {
+	return ec._History(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNHistory2ᚕᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐHistoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*graphql1.History) graphql.Marshaler {
@@ -6148,6 +6522,13 @@ func (ec *executionContext) marshalOSortOrder2ᚖgithubᚗcomᚋsecmonᚑlabᚋb
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOSource2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSource(ctx context.Context, sel ast.SelectionSet, v *graphql1.Source) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Source(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOSourceState2ᚖgithubᚗcomᚋsecmonᚑlabᚋbeehiveᚋpkgᚋdomainᚋmodelᚋgraphqlᚐSourceState(ctx context.Context, sel ast.SelectionSet, v *graphql1.SourceState) graphql.Marshaler {

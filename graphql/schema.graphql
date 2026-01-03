@@ -44,6 +44,9 @@ type Source {
   id: ID!
   type: String!
   url: String!
+  schema: String
+  schemaDescription: String
+  description: String
   tags: [String!]!
   enabled: Boolean!
   state: SourceState
@@ -56,8 +59,9 @@ type SourceState {
   lastItemDate: Time
   itemCount: Int!
   errorCount: Int!
+  lastStatus: String
   lastError: String
-  updatedAt: Time!
+  updatedAt: Time
 }
 
 type KeyValue {
@@ -93,7 +97,7 @@ type History {
 
 type HistoryConnection {
   items: [History!]!
-  total: Int!
+  total: Int
 }
 
 type Query {
@@ -101,10 +105,12 @@ type Query {
   listIoCs(options: IoCListOptions): IoCConnection!
   getIoC(id: ID!): IoC
   listSources: [Source!]!
+  getSource(id: ID!): Source
   listHistories(sourceID: String!, limit: Int, offset: Int): HistoryConnection!
   getHistory(sourceID: String!, id: ID!): History
 }
 
 type Mutation {
   noop: Boolean
+  fetchSource(sourceID: String!): History!
 }

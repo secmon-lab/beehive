@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -19,7 +20,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 	t.Run("save and get history", func(t *testing.T) {
 		// Use timestamp-based unique IDs
 		now := time.Now()
-		sourceID := now.Format("source-20060102-150405.000000")
+		sourceID := fmt.Sprintf("source-%d", now.UnixNano())
 		historyID := model.GenerateHistoryID()
 
 		// Create test history
@@ -70,7 +71,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 
 	t.Run("save history with errors", func(t *testing.T) {
 		now := time.Now()
-		sourceID := now.Format("source-20060102-150405.000000")
+		sourceID := fmt.Sprintf("source-%d", now.UnixNano())
 		historyID := model.GenerateHistoryID()
 
 		// Create history with errors
@@ -134,7 +135,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 
 	t.Run("list histories by source", func(t *testing.T) {
 		now := time.Now()
-		sourceID := now.Format("source-20060102-150405.000000")
+		sourceID := fmt.Sprintf("source-%d", now.UnixNano())
 
 		// Create multiple histories
 		histories := []*model.History{
@@ -230,7 +231,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 
 	t.Run("get non-existent history returns error", func(t *testing.T) {
 		now := time.Now()
-		sourceID := now.Format("nonexistent-20060102-150405.000000")
+		sourceID := fmt.Sprintf("nonexistent-%d", now.UnixNano())
 		historyID := model.GenerateHistoryID()
 
 		_, err := repo.GetHistory(ctx, sourceID, historyID)
@@ -239,7 +240,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 
 	t.Run("list histories for non-existent source returns empty", func(t *testing.T) {
 		now := time.Now()
-		sourceID := now.Format("nonexistent-20060102-150405.000000")
+		sourceID := fmt.Sprintf("nonexistent-%d", now.UnixNano())
 
 		histories, total, err := repo.ListHistoriesBySource(ctx, sourceID, 10, 0)
 		gt.NoError(t, err)
@@ -267,7 +268,7 @@ func runHistoryRepositoryTest(t *testing.T, repo interfaces.HistoryRepository) {
 
 	t.Run("empty history ID returns error", func(t *testing.T) {
 		now := time.Now()
-		sourceID := now.Format("source-20060102-150405.000000")
+		sourceID := fmt.Sprintf("source-%d", now.UnixNano())
 		history := &model.History{
 			ID:             "",
 			SourceID:       sourceID,

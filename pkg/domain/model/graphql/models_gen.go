@@ -36,7 +36,7 @@ type History struct {
 
 type HistoryConnection struct {
 	Items []*History `json:"items"`
-	Total int        `json:"total"`
+	Total *int       `json:"total,omitempty"`
 }
 
 type IoC struct {
@@ -77,12 +77,15 @@ type Query struct {
 }
 
 type Source struct {
-	ID      string       `json:"id"`
-	Type    string       `json:"type"`
-	URL     string       `json:"url"`
-	Tags    []string     `json:"tags"`
-	Enabled bool         `json:"enabled"`
-	State   *SourceState `json:"state,omitempty"`
+	ID                string       `json:"id"`
+	Type              string       `json:"type"`
+	URL               string       `json:"url"`
+	Schema            *string      `json:"schema,omitempty"`
+	SchemaDescription *string      `json:"schemaDescription,omitempty"`
+	Description       *string      `json:"description,omitempty"`
+	Tags              []string     `json:"tags"`
+	Enabled           bool         `json:"enabled"`
+	State             *SourceState `json:"state,omitempty"`
 }
 
 type SourceState struct {
@@ -92,8 +95,9 @@ type SourceState struct {
 	LastItemDate  *time.Time `json:"lastItemDate,omitempty"`
 	ItemCount     int        `json:"itemCount"`
 	ErrorCount    int        `json:"errorCount"`
+	LastStatus    *string    `json:"lastStatus,omitempty"`
 	LastError     *string    `json:"lastError,omitempty"`
-	UpdatedAt     time.Time  `json:"updatedAt"`
+	UpdatedAt     *time.Time `json:"updatedAt,omitempty"`
 }
 
 type IoCSortField string

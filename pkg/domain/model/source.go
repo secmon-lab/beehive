@@ -17,12 +17,13 @@ type SourcesConfig struct {
 
 // Source represents a single source configuration
 type Source struct {
-	Type       SourceType  `toml:"type"`
-	URL        string      `toml:"url"`
-	Tags       []string    `toml:"tags"`
-	Enabled    bool        `toml:"enabled"`
-	RSSConfig  *RSSConfig  `toml:"rss_config,omitempty"`  // Only for type="rss"
-	FeedConfig *FeedConfig `toml:"feed_config,omitempty"` // Only for type="feed"
+	Type        SourceType  `toml:"type"`
+	URL         string      `toml:"url"`
+	Description string      `toml:"description"` // User-defined description from config
+	Tags        []string    `toml:"tags"`
+	Enabled     bool        `toml:"enabled"`
+	RSSConfig   *RSSConfig  `toml:"rss_config,omitempty"`  // Only for type="rss"
+	FeedConfig  *FeedConfig `toml:"feed_config,omitempty"` // Only for type="feed"
 }
 
 // RSSConfig contains RSS-specific configuration
@@ -43,7 +44,8 @@ type SourceState struct {
 	LastItemID    string    // For RSS: last GUID, for feeds: last entry ID
 	LastItemDate  time.Time // Last item's published date
 	ItemCount     int64     // Total items processed
-	ErrorCount    int64     // Error count
+	ErrorCount    int64     // Total error count (cumulative)
+	LastStatus    string    // Last fetch status (success/error/partial)
 	LastError     string    // Last error message
 	UpdatedAt     time.Time
 }

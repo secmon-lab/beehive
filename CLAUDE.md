@@ -29,10 +29,47 @@ Beehive is an IoC (Indicator of Compromise) management system built with Go and 
 - `go test ./pkg/path/to/package` - Run tests for specific package
 
 ### Code Generation
-- `go tool gqlgen generate` - Generate GraphQL resolvers and types from schema
+- `task graphql` or `go tool gqlgen generate` - Generate GraphQL resolvers and types from schema
+- **CRITICAL**: After modifying `graphql/schema.graphql`, you MUST:
+  1. Run `task graphql` to regenerate Go code
+  2. Manually update TypeScript interfaces in frontend (this project doesn't use GraphQL Code Generator)
+  3. Verify both backend and frontend build successfully
 - Mock generation planned for future when more interfaces are defined
 
 ## Important Development Guidelines
+
+### Architecture and Layer Separation
+
+**CRITICAL**: The application follows clean architecture with strict layer separation.
+
+#### CLI Layer Rules
+- **FORBIDDEN**: CLI commands MUST NOT directly access repository or infrastructure layers
+- **REQUIRED**: CLI commands MUST ONLY call usecase methods
+- **REQUIRED**: All database operations MUST go through usecase layer
+
+**Wrong Pattern** (FORBIDDEN):
+```go
+// ❌ BAD: CLI directly creates repository and passes to domain
+repo := firestore.New(ctx, projectID)
+sources := createSources(ctx, cfg, repo, repo, repo, llmClient)
+stats, err := domain.FetchAllSources(ctx, sources)  // Domain calls repo directly
+```
+
+**Correct Pattern** (REQUIRED):
+```go
+// ✅ GOOD: CLI only calls usecase, usecase handles all repository access
+repo := firestore.New(ctx, projectID)
+fetchUC := usecase.NewFetchUseCase(repo, llmClient)
+sourcesMap := convertConfigToSourcesMap(cfg)  // Convert config to model.Source map
+stats, err := fetchUC.FetchAllSources(ctx, sourcesMap, tags)  // Usecase handles everything
+```
+
+#### Layer Responsibilities
+- **CLI Layer** (`pkg/cli/`): Parse flags, load config, initialize dependencies, call usecases
+- **UseCase Layer** (`pkg/usecase/`): Business logic orchestration, repository access
+- **Domain Layer** (`pkg/domain/`): Domain models and interfaces only
+- **Repository Layer** (`pkg/repository/`): Data persistence implementation
+- **Controller Layer** (`pkg/controller/`): Interface adapters (GraphQL, HTTP)
 
 ### Error Handling
 - Use `github.com/m-mizutani/goerr/v2` for error handling

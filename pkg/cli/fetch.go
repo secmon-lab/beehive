@@ -8,9 +8,7 @@ import (
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/cli/config"
-	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
-	"github.com/secmon-lab/beehive/pkg/domain/source/feed"
-	"github.com/secmon-lab/beehive/pkg/domain/source/rss"
+	"github.com/secmon-lab/beehive/pkg/domain/model"
 	firestoreRepo "github.com/secmon-lab/beehive/pkg/repository/firestore"
 	"github.com/secmon-lab/beehive/pkg/repository/memory"
 	"github.com/secmon-lab/beehive/pkg/usecase"
@@ -73,17 +71,12 @@ func cmdFetch() *cli.Command {
 				"feed_sources", len(cfg.Feed))
 
 			// Initialize repository
-			var repo interface {
-				interfaces.IoCRepository
-				interfaces.SourceStateRepository
-				rss.RSSStateRepository
-				feed.FeedStateRepository
-				interfaces.HistoryRepository
-			}
+			var repo *firestoreRepo.Firestore
+			var memRepo *memory.Memory
 
 			if dryRun {
 				// Use in-memory storage for dry-run
-				repo = memory.New()
+				memRepo = memory.New()
 				logger.Info("using in-memory storage (dry-run mode)")
 			} else {
 				// Use Firestore for production
@@ -122,25 +115,22 @@ func cmdFetch() *cli.Command {
 
 			logger.Info("initialized LLM client", "provider", llmCfg.Provider, "model", llmCfg.Model)
 
-			// Create sources from configuration
-			sources := createSources(ctx, cfg, repo, repo, repo, repo, llmClient)
-			logger.Info("created sources", "total", len(sources))
+			// Convert config to sources map (model.Source)
+			sourcesMap := convertConfigToSourcesMap(cfg)
+			logger.Info("converted sources from config", "total", len(sourcesMap))
 
-			// Filter by tags if specified
-			if len(tags) > 0 {
-				sources = filterByTags(sources, tags)
-				logger.Info("filtered sources by tags", "tags", tags, "remaining", len(sources))
+			// Initialize FetchUseCase
+			var fetchUC *usecase.FetchUseCase
+			if dryRun {
+				fetchUC = usecase.NewFetchUseCase(memRepo, llmClient)
+			} else {
+				fetchUC = usecase.NewFetchUseCase(repo, llmClient)
 			}
 
-			if len(sources) == 0 {
-				logger.Warn("no sources to fetch")
-				return nil
-			}
+			// Execute fetch via usecase
+			logger.Info("starting fetch operation", "sources", len(sourcesMap), "tags", tags, "dry_run", dryRun)
 
-			// Execute fetch
-			logger.Info("starting fetch operation", "sources", len(sources), "dry_run", dryRun)
-
-			stats, err := usecase.FetchAllSources(ctx, sources)
+			stats, err := fetchUC.FetchAllSources(ctx, sourcesMap, tags)
 			if err != nil {
 				return goerr.Wrap(err, "fetch operation failed")
 			}
@@ -182,8 +172,48 @@ func findConfigFile(path string) (string, error) {
 		goerr.V("searched_paths", searchPaths))
 }
 
+// convertConfigToSourcesMap converts config to model.Source map
+func convertConfigToSourcesMap(cfg *config.Config) map[string]model.Source {
+	sourcesMap := make(map[string]model.Source)
+
+	// Add RSS sources
+	for id, rssSrc := range cfg.RSS {
+		if rssSrc.Disabled {
+			continue
+		}
+		sourcesMap[id] = model.Source{
+			Type:    model.SourceTypeRSS,
+			URL:     rssSrc.URL,
+			Tags:    rssSrc.Tags.Strings(),
+			Enabled: !rssSrc.Disabled,
+			RSSConfig: &model.RSSConfig{
+				MaxArticles: rssSrc.MaxArticles,
+			},
+		}
+	}
+
+	// Add Feed sources
+	for id, feedSrc := range cfg.Feed {
+		if feedSrc.Disabled {
+			continue
+		}
+		sourcesMap[id] = model.Source{
+			Type:    model.SourceTypeFeed,
+			URL:     feedSrc.GetURL(),
+			Tags:    feedSrc.Tags.Strings(),
+			Enabled: !feedSrc.Disabled,
+			FeedConfig: &model.FeedConfig{
+				Schema:   feedSrc.Schema.String(),
+				MaxItems: feedSrc.MaxItems,
+			},
+		}
+	}
+
+	return sourcesMap
+}
+
 // printFetchResults prints the fetch results to stdout
-func printFetchResults(stats []*interfaces.FetchStats) {
+func printFetchResults(histories []*model.History) {
 	fmt.Println("\n=== Fetch Results ===")
 	fmt.Println()
 
@@ -194,27 +224,27 @@ func printFetchResults(stats []*interfaces.FetchStats) {
 	totalUnchanged := 0
 	totalErrors := 0
 
-	for _, s := range stats {
-		fmt.Printf("Source: %s (%s)\n", s.SourceID, s.SourceType)
-		fmt.Printf("  Items Fetched:   %d\n", s.ItemsFetched)
-		fmt.Printf("  IoCs Extracted:  %d\n", s.IoCsExtracted)
-		fmt.Printf("  IoCs Created:    %d\n", s.IoCsCreated)
-		fmt.Printf("  IoCs Updated:    %d\n", s.IoCsUpdated)
-		fmt.Printf("  IoCs Unchanged:  %d\n", s.IoCsUnchanged)
-		fmt.Printf("  Errors:          %d\n", s.ErrorCount)
-		fmt.Printf("  Processing Time: %v\n", s.ProcessingTime)
+	for _, h := range histories {
+		fmt.Printf("Source: %s (%s)\n", h.SourceID, h.SourceType)
+		fmt.Printf("  Items Fetched:   %d\n", h.ItemsFetched)
+		fmt.Printf("  IoCs Extracted:  %d\n", h.IoCsExtracted)
+		fmt.Printf("  IoCs Created:    %d\n", h.IoCsCreated)
+		fmt.Printf("  IoCs Updated:    %d\n", h.IoCsUpdated)
+		fmt.Printf("  IoCs Unchanged:  %d\n", h.IoCsUnchanged)
+		fmt.Printf("  Errors:          %d\n", h.ErrorCount)
+		fmt.Printf("  Processing Time: %v\n", h.ProcessingTime)
 		fmt.Println()
 
-		totalItems += s.ItemsFetched
-		totalExtracted += s.IoCsExtracted
-		totalCreated += s.IoCsCreated
-		totalUpdated += s.IoCsUpdated
-		totalUnchanged += s.IoCsUnchanged
-		totalErrors += s.ErrorCount
+		totalItems += h.ItemsFetched
+		totalExtracted += h.IoCsExtracted
+		totalCreated += h.IoCsCreated
+		totalUpdated += h.IoCsUpdated
+		totalUnchanged += h.IoCsUnchanged
+		totalErrors += h.ErrorCount
 	}
 
 	fmt.Println("=== Summary ===")
-	fmt.Printf("Total Sources Processed: %d\n", len(stats))
+	fmt.Printf("Total Sources Processed: %d\n", len(histories))
 	fmt.Printf("Total Items Fetched:     %d\n", totalItems)
 	fmt.Printf("Total IoCs Extracted:    %d\n", totalExtracted)
 	fmt.Printf("Total IoCs Created:      %d\n", totalCreated)

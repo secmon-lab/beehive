@@ -10,8 +10,6 @@ import (
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
-	"github.com/secmon-lab/beehive/pkg/domain/source/feed"
-	"github.com/secmon-lab/beehive/pkg/domain/source/rss"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -19,139 +17,8 @@ import (
 const (
 	collectionIoCs         = "iocs"
 	collectionSources      = "sources"
-	subcollectionHistories = "histories"
+	subCollectionHistories = "histories"
 )
-
-// firestoreSourceState is the Firestore representation of SourceState
-// This keeps the domain model free from infrastructure concerns
-type firestoreSourceState struct {
-	SourceID      string    `firestore:"source_id"`
-	LastFetchedAt time.Time `firestore:"last_fetched_at"`
-	LastItemID    string    `firestore:"last_item_id"`
-	LastItemDate  time.Time `firestore:"last_item_date"`
-	ItemCount     int64     `firestore:"item_count"`
-	ErrorCount    int64     `firestore:"error_count"`
-	LastError     string    `firestore:"last_error"`
-	UpdatedAt     time.Time `firestore:"updated_at"`
-}
-
-// toFirestoreSourceState converts domain model to Firestore representation
-func toFirestoreSourceState(state *model.SourceState) *firestoreSourceState {
-	return &firestoreSourceState{
-		SourceID:      state.SourceID,
-		LastFetchedAt: state.LastFetchedAt,
-		LastItemID:    state.LastItemID,
-		LastItemDate:  state.LastItemDate,
-		ItemCount:     state.ItemCount,
-		ErrorCount:    state.ErrorCount,
-		LastError:     state.LastError,
-		UpdatedAt:     state.UpdatedAt,
-	}
-}
-
-// toDomainSourceState converts Firestore representation to domain model
-func toDomainSourceState(fs *firestoreSourceState) *model.SourceState {
-	return &model.SourceState{
-		SourceID:      fs.SourceID,
-		LastFetchedAt: fs.LastFetchedAt,
-		LastItemID:    fs.LastItemID,
-		LastItemDate:  fs.LastItemDate,
-		ItemCount:     fs.ItemCount,
-		ErrorCount:    fs.ErrorCount,
-		LastError:     fs.LastError,
-		UpdatedAt:     fs.UpdatedAt,
-	}
-}
-
-// firestoreFetchError is the Firestore representation of FetchError
-type firestoreFetchError struct {
-	Message string            `firestore:"message"`
-	Values  map[string]string `firestore:"values"`
-}
-
-// firestoreHistory is the Firestore representation of History
-// This keeps the domain model free from infrastructure concerns
-type firestoreHistory struct {
-	ID             string                `firestore:"id"`
-	SourceID       string                `firestore:"source_id"`
-	SourceType     string                `firestore:"source_type"`
-	Status         string                `firestore:"status"`
-	StartedAt      time.Time             `firestore:"started_at"`
-	CompletedAt    time.Time             `firestore:"completed_at"`
-	ProcessingTime int64                 `firestore:"processing_time"` // nanoseconds
-	ItemsFetched   int                   `firestore:"items_fetched"`
-	IoCsExtracted  int                   `firestore:"iocs_extracted"`
-	IoCsCreated    int                   `firestore:"iocs_created"`
-	IoCsUpdated    int                   `firestore:"iocs_updated"`
-	IoCsUnchanged  int                   `firestore:"iocs_unchanged"`
-	ErrorCount     int                   `firestore:"error_count"`
-	Errors         []firestoreFetchError `firestore:"errors"`
-	CreatedAt      time.Time             `firestore:"created_at"`
-}
-
-// toFirestoreHistory converts domain model to Firestore representation
-func toFirestoreHistory(history *model.History) *firestoreHistory {
-	fh := &firestoreHistory{
-		ID:             history.ID,
-		SourceID:       history.SourceID,
-		SourceType:     string(history.SourceType),
-		Status:         string(history.Status),
-		StartedAt:      history.StartedAt,
-		CompletedAt:    history.CompletedAt,
-		ProcessingTime: int64(history.ProcessingTime),
-		ItemsFetched:   history.ItemsFetched,
-		IoCsExtracted:  history.IoCsExtracted,
-		IoCsCreated:    history.IoCsCreated,
-		IoCsUpdated:    history.IoCsUpdated,
-		IoCsUnchanged:  history.IoCsUnchanged,
-		ErrorCount:     history.ErrorCount,
-		CreatedAt:      history.CreatedAt,
-	}
-
-	if history.Errors != nil {
-		fh.Errors = make([]firestoreFetchError, len(history.Errors))
-		for i, err := range history.Errors {
-			fh.Errors[i] = firestoreFetchError{
-				Message: err.Message,
-				Values:  err.Values,
-			}
-		}
-	}
-
-	return fh
-}
-
-// toDomainHistory converts Firestore representation to domain model
-func toDomainHistory(fh *firestoreHistory) *model.History {
-	history := &model.History{
-		ID:             fh.ID,
-		SourceID:       fh.SourceID,
-		SourceType:     model.SourceType(fh.SourceType),
-		Status:         model.FetchStatus(fh.Status),
-		StartedAt:      fh.StartedAt,
-		CompletedAt:    fh.CompletedAt,
-		ProcessingTime: time.Duration(fh.ProcessingTime),
-		ItemsFetched:   fh.ItemsFetched,
-		IoCsExtracted:  fh.IoCsExtracted,
-		IoCsCreated:    fh.IoCsCreated,
-		IoCsUpdated:    fh.IoCsUpdated,
-		IoCsUnchanged:  fh.IoCsUnchanged,
-		ErrorCount:     fh.ErrorCount,
-		CreatedAt:      fh.CreatedAt,
-	}
-
-	if fh.Errors != nil {
-		history.Errors = make([]*model.FetchError, len(fh.Errors))
-		for i, err := range fh.Errors {
-			history.Errors[i] = &model.FetchError{
-				Message: err.Message,
-				Values:  err.Values,
-			}
-		}
-	}
-
-	return history
-}
 
 type Firestore struct {
 	client *firestore.Client
@@ -160,8 +27,6 @@ type Firestore struct {
 var _ interfaces.IoCRepository = &Firestore{}
 var _ interfaces.SourceStateRepository = &Firestore{}
 var _ interfaces.HistoryRepository = &Firestore{}
-var _ rss.RSSStateRepository = &Firestore{}
-var _ feed.FeedStateRepository = &Firestore{}
 
 func New(ctx context.Context, projectID string, opts ...Option) (*Firestore, error) {
 	var options options
@@ -548,13 +413,16 @@ func (f *Firestore) GetState(ctx context.Context, sourceID string) (*model.Sourc
 			goerr.V("source_id", sourceID))
 	}
 
-	var fsState firestoreSourceState
-	if err := doc.DataTo(&fsState); err != nil {
+	var state model.SourceState
+	if err := doc.DataTo(&state); err != nil {
 		return nil, goerr.Wrap(err, "failed to decode source state",
 			goerr.V("source_id", sourceID))
 	}
 
-	return toDomainSourceState(&fsState), nil
+	// SourceID is stored as document ID, not in data fields
+	state.SourceID = sourceID
+
+	return &state, nil
 }
 
 // SaveState saves or updates source state
@@ -566,11 +434,8 @@ func (f *Firestore) SaveState(ctx context.Context, state *model.SourceState) err
 	// Update timestamp before saving
 	state.UpdatedAt = time.Now()
 
-	// Convert to Firestore representation
-	fsState := toFirestoreSourceState(state)
-
 	docRef := f.client.Collection(collectionSources).Doc(state.SourceID)
-	if _, err := docRef.Set(ctx, fsState); err != nil {
+	if _, err := docRef.Set(ctx, state); err != nil {
 		return goerr.Wrap(err, "failed to save source state to firestore",
 			goerr.V("source_id", state.SourceID))
 	}
@@ -604,98 +469,19 @@ func (f *Firestore) BatchGetStates(ctx context.Context, sourceIDs []string) (map
 			continue
 		}
 
-		var fsState firestoreSourceState
-		if err := doc.DataTo(&fsState); err != nil {
+		var state model.SourceState
+		if err := doc.DataTo(&state); err != nil {
 			return nil, goerr.Wrap(err, "failed to unmarshal source state",
 				goerr.V("source_id", sourceIDs[i]))
 		}
 
-		result[sourceIDs[i]] = toDomainSourceState(&fsState)
+		// SourceID is stored as document ID, not in data fields
+		state.SourceID = sourceIDs[i]
+
+		result[sourceIDs[i]] = &state
 	}
 
 	return result, nil
-}
-
-// GetRSSState retrieves RSS state by source ID
-func (f *Firestore) GetRSSState(ctx context.Context, sourceID string) (*rss.RSSState, error) {
-	doc, err := f.client.Collection(collectionSources).Doc(sourceID).Get(ctx)
-	if err != nil {
-		if status.Code(err) == codes.NotFound {
-			return nil, goerr.Wrap(rss.ErrRSSStateNotFound, "RSS state not found", goerr.V("source_id", sourceID))
-		}
-		return nil, goerr.Wrap(err, "failed to get RSS state from firestore",
-			goerr.V("source_id", sourceID))
-	}
-
-	var state rss.RSSState
-	if err := doc.DataTo(&state); err != nil {
-		return nil, goerr.Wrap(err, "failed to decode RSS state",
-			goerr.V("source_id", sourceID))
-	}
-
-	// SourceID is stored as document ID, not in data fields
-	state.SourceID = sourceID
-
-	return &state, nil
-}
-
-// SaveRSSState saves or updates RSS state
-func (f *Firestore) SaveRSSState(ctx context.Context, state *rss.RSSState) error {
-	if state.SourceID == "" {
-		return goerr.New("source ID cannot be empty")
-	}
-
-	// Update timestamp before saving
-	state.UpdatedAt = time.Now()
-
-	docRef := f.client.Collection(collectionSources).Doc(state.SourceID)
-	if _, err := docRef.Set(ctx, state); err != nil {
-		return goerr.Wrap(err, "failed to save RSS state to firestore",
-			goerr.V("source_id", state.SourceID))
-	}
-
-	return nil
-}
-
-// GetFeedState retrieves Feed state by source ID
-func (f *Firestore) GetFeedState(ctx context.Context, sourceID string) (*feed.FeedState, error) {
-	doc, err := f.client.Collection(collectionSources).Doc(sourceID).Get(ctx)
-	if err != nil {
-		if status.Code(err) == codes.NotFound {
-			return nil, goerr.Wrap(feed.ErrFeedStateNotFound, "Feed state not found", goerr.V("source_id", sourceID))
-		}
-		return nil, goerr.Wrap(err, "failed to get Feed state from firestore",
-			goerr.V("source_id", sourceID))
-	}
-
-	var state feed.FeedState
-	if err := doc.DataTo(&state); err != nil {
-		return nil, goerr.Wrap(err, "failed to decode Feed state",
-			goerr.V("source_id", sourceID))
-	}
-
-	// SourceID is stored as document ID, not in data fields
-	state.SourceID = sourceID
-
-	return &state, nil
-}
-
-// SaveFeedState saves or updates Feed state
-func (f *Firestore) SaveFeedState(ctx context.Context, state *feed.FeedState) error {
-	if state.SourceID == "" {
-		return goerr.New("source ID cannot be empty")
-	}
-
-	// Update timestamp before saving
-	state.UpdatedAt = time.Now()
-
-	docRef := f.client.Collection(collectionSources).Doc(state.SourceID)
-	if _, err := docRef.Set(ctx, state); err != nil {
-		return goerr.Wrap(err, "failed to save Feed state to firestore",
-			goerr.V("source_id", state.SourceID))
-	}
-
-	return nil
 }
 
 // FindNearestIoCs performs vector similarity search using Firestore Vector Search
@@ -748,15 +534,13 @@ func (f *Firestore) SaveHistory(ctx context.Context, history *model.History) err
 		return goerr.New("history ID cannot be empty")
 	}
 
-	fh := toFirestoreHistory(history)
-
 	// Path: sources/{sourceID}/histories/{historyID}
 	docRef := f.client.Collection(collectionSources).
 		Doc(history.SourceID).
-		Collection(subcollectionHistories).
+		Collection(subCollectionHistories).
 		Doc(history.ID)
 
-	if _, err := docRef.Set(ctx, fh); err != nil {
+	if _, err := docRef.Set(ctx, history); err != nil {
 		return goerr.Wrap(err, "failed to save history to firestore",
 			goerr.V("source_id", history.SourceID),
 			goerr.V("history_id", history.ID))
@@ -770,33 +554,10 @@ func (f *Firestore) ListHistoriesBySource(ctx context.Context, sourceID string, 
 	// Path: sources/{sourceID}/histories
 	historyCollection := f.client.Collection(collectionSources).
 		Doc(sourceID).
-		Collection(subcollectionHistories)
-
-	// Get total count using aggregation query
-	aggregationQuery := historyCollection.NewAggregationQuery().WithCount("total")
-	aggregationResults, err := aggregationQuery.Get(ctx)
-	if err != nil {
-		return nil, 0, goerr.Wrap(err, "failed to get total history count",
-			goerr.V("source_id", sourceID))
-	}
-
-	// Extract count from aggregation result
-	totalValue, ok := aggregationResults["total"]
-	if !ok {
-		return nil, 0, goerr.New("total count not found in aggregation result")
-	}
-
-	// Convert count value to int (Firestore returns protobuf value)
-	pbValue, ok := totalValue.(*firestorepb.Value)
-	if !ok {
-		return nil, 0, goerr.New("total count has unexpected type",
-			goerr.V("type", fmt.Sprintf("%T", totalValue)),
-			goerr.V("value", totalValue))
-	}
-	total := int(pbValue.GetIntegerValue())
+		Collection(subCollectionHistories)
 
 	// Build query with ordering
-	query := historyCollection.OrderBy("started_at", firestore.Desc)
+	query := historyCollection.OrderBy("StartedAt", firestore.Desc)
 
 	// Apply offset
 	if offset > 0 {
@@ -818,14 +579,29 @@ func (f *Firestore) ListHistoriesBySource(ctx context.Context, sourceID string, 
 
 	var histories []*model.History
 	for _, doc := range docs {
-		var fh firestoreHistory
-		if err := doc.DataTo(&fh); err != nil {
+		var h model.History
+		if err := doc.DataTo(&h); err != nil {
 			return nil, 0, goerr.Wrap(err, "failed to decode history",
 				goerr.V("doc_id", doc.Ref.ID),
 				goerr.V("source_id", sourceID))
 		}
-		histories = append(histories, toDomainHistory(&fh))
+		histories = append(histories, &h)
 	}
+
+	// Get total count using aggregation query
+	countQuery := historyCollection.NewAggregationQuery().WithCount("total")
+	countResult, err := countQuery.Get(ctx)
+	if err != nil {
+		return nil, 0, goerr.Wrap(err, "failed to get total count",
+			goerr.V("source_id", sourceID))
+	}
+
+	totalCount, ok := countResult["total"]
+	if !ok {
+		return nil, 0, goerr.New("total count not found in aggregation result")
+	}
+
+	total := int(totalCount.(*firestorepb.Value).GetIntegerValue())
 
 	return histories, total, nil
 }
@@ -835,7 +611,7 @@ func (f *Firestore) GetHistory(ctx context.Context, sourceID string, historyID s
 	// Path: sources/{sourceID}/histories/{historyID}
 	doc, err := f.client.Collection(collectionSources).
 		Doc(sourceID).
-		Collection(subcollectionHistories).
+		Collection(subCollectionHistories).
 		Doc(historyID).
 		Get(ctx)
 
@@ -850,12 +626,12 @@ func (f *Firestore) GetHistory(ctx context.Context, sourceID string, historyID s
 			goerr.V("history_id", historyID))
 	}
 
-	var fh firestoreHistory
-	if err := doc.DataTo(&fh); err != nil {
+	var h model.History
+	if err := doc.DataTo(&h); err != nil {
 		return nil, goerr.Wrap(err, "failed to decode history",
 			goerr.V("source_id", sourceID),
 			goerr.V("history_id", historyID))
 	}
 
-	return toDomainHistory(&fh), nil
+	return &h, nil
 }

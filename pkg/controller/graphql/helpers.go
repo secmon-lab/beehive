@@ -6,6 +6,7 @@ import (
 
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	graphql1 "github.com/secmon-lab/beehive/pkg/domain/model/graphql"
+	"github.com/secmon-lab/beehive/pkg/service/feed"
 )
 
 func ptrIntValue(ptr *int) int {
@@ -76,7 +77,9 @@ func toGraphQLSourceState(state *model.SourceState) *graphql1.SourceState {
 	var lastFetchedAt *time.Time
 	var lastItemID *string
 	var lastItemDate *time.Time
+	var lastStatus *string
 	var lastError *string
+	var updatedAt *time.Time
 
 	if !state.LastFetchedAt.IsZero() {
 		lastFetchedAt = &state.LastFetchedAt
@@ -87,8 +90,14 @@ func toGraphQLSourceState(state *model.SourceState) *graphql1.SourceState {
 	if !state.LastItemDate.IsZero() {
 		lastItemDate = &state.LastItemDate
 	}
+	if state.LastStatus != "" {
+		lastStatus = &state.LastStatus
+	}
 	if state.LastError != "" {
 		lastError = &state.LastError
+	}
+	if !state.UpdatedAt.IsZero() {
+		updatedAt = &state.UpdatedAt
 	}
 
 	return &graphql1.SourceState{
@@ -98,8 +107,9 @@ func toGraphQLSourceState(state *model.SourceState) *graphql1.SourceState {
 		LastItemDate:  lastItemDate,
 		ItemCount:     int(state.ItemCount),
 		ErrorCount:    int(state.ErrorCount),
+		LastStatus:    lastStatus,
 		LastError:     lastError,
-		UpdatedAt:     state.UpdatedAt,
+		UpdatedAt:     updatedAt,
 	}
 }
 
@@ -145,4 +155,18 @@ func toGraphQLHistory(h *model.History) *graphql1.History {
 		Errors:         errors,
 		CreatedAt:      h.CreatedAt,
 	}
+}
+
+func ensureStringSlice(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+func getSchemaDescription(schema string) string {
+	if desc, ok := feed.SchemaDescriptions[schema]; ok {
+		return desc
+	}
+	return ""
 }

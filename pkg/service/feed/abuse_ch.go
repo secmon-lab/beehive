@@ -17,6 +17,70 @@ var (
 	errParseFailed = goerr.New("failed to parse feed")
 )
 
+// SchemaDescriptions maps feed schema names to human-readable descriptions
+var SchemaDescriptions = map[string]string{
+	// Abuse.ch feeds
+	"abuse_ch_urlhaus":         "URLhaus - Malicious URLs used for malware distribution",
+	"abuse_ch_threatfox":       "ThreatFox - Indicators of Compromise (IOCs) shared by the community",
+	"abuse_ch_feodotracker_ip": "Feodotracker - IP addresses of Feodo/Emotet/Dridex C&C servers",
+	"abuse_ch_sslbl":           "SSL Blacklist - Malicious SSL certificates",
+
+	// Blocklist.de feeds
+	"blocklist_de_all":        "Blocklist.de All - All IP addresses that attacked servers",
+	"blocklist_de_ssh":        "Blocklist.de SSH - IP addresses that attempted SSH brute force attacks",
+	"blocklist_de_mail":       "Blocklist.de Mail - IP addresses that attempted mail server attacks",
+	"blocklist_de_apache":     "Blocklist.de Apache - IP addresses that attempted Apache/web attacks",
+	"blocklist_de_imap":       "Blocklist.de IMAP - IP addresses that attempted IMAP attacks",
+	"blocklist_de_bots":       "Blocklist.de Bots - IP addresses identified as bots",
+	"blocklist_de_bruteforce": "Blocklist.de Bruteforce - IP addresses that attempted brute force attacks",
+	"blocklist_de_strongips":  "Blocklist.de StrongIPs - IP addresses with strong attack patterns",
+	"blocklist_de_ftp":        "Blocklist.de FTP - IP addresses that attempted FTP attacks",
+
+	// IPsum feeds
+	"ipsum_level3": "IPsum Level 3 - Malicious IPs (aggregation level 3)",
+	"ipsum_level4": "IPsum Level 4 - Malicious IPs (aggregation level 4)",
+	"ipsum_level5": "IPsum Level 5 - Malicious IPs (aggregation level 5)",
+	"ipsum_level6": "IPsum Level 6 - Malicious IPs (aggregation level 6)",
+	"ipsum_level7": "IPsum Level 7 - Malicious IPs (aggregation level 7)",
+	"ipsum_level8": "IPsum Level 8 - Malicious IPs (aggregation level 8)",
+
+	// C2IntelFeeds
+	"c2intel_ipc2s":             "C2IntelFeeds - Command and Control IP addresses",
+	"c2intel_domain_c2s":        "C2IntelFeeds - Command and Control domains",
+	"c2intel_domain_c2s_url":    "C2IntelFeeds - Command and Control domains with URLs",
+	"c2intel_domain_c2s_url_ip": "C2IntelFeeds - Command and Control domains with URLs and IPs",
+
+	// Montysecurity C2 Tracker feeds
+	"montysecurity_brute_ratel":   "Montysecurity - Brute Ratel C4 C2 servers",
+	"montysecurity_cobalt_strike": "Montysecurity - Cobalt Strike C2 servers",
+	"montysecurity_sliver":        "Montysecurity - Sliver C2 servers",
+	"montysecurity_metasploit":    "Montysecurity - Metasploit C2 servers",
+	"montysecurity_havoc":         "Montysecurity - Havoc Framework C2 servers",
+	"montysecurity_burpsuite":     "Montysecurity - BurpSuite Collaborator servers",
+	"montysecurity_deimos":        "Montysecurity - Deimos C2 servers",
+	"montysecurity_gophish":       "Montysecurity - GoPhish phishing servers",
+	"montysecurity_mythic":        "Montysecurity - Mythic C2 servers",
+	"montysecurity_nimplant":      "Montysecurity - NimPlant C2 servers",
+	"montysecurity_panda":         "Montysecurity - PANDA C2 servers",
+	"montysecurity_xmrig":         "Montysecurity - XMRig cryptocurrency miners",
+	"montysecurity_all":           "Montysecurity - All C2 and malicious servers",
+
+	// ThreatView.io feeds
+	"threatview_ioc_tweets":    "ThreatView - IOCs extracted from Twitter",
+	"threatview_cobalt_strike": "ThreatView - Cobalt Strike C2 servers",
+	"threatview_ip_high":       "ThreatView - High confidence malicious IPs",
+	"threatview_domain_high":   "ThreatView - High confidence malicious domains",
+	"threatview_md5":           "ThreatView - Malicious file MD5 hashes",
+	"threatview_url_high":      "ThreatView - High confidence malicious URLs",
+	"threatview_sha":           "ThreatView - Malicious file SHA hashes",
+
+	// Other feeds
+	"emerging_threats_compromised_ip": "Emerging Threats - Known compromised or attacking IP addresses",
+	"binarydefense_banlist":           "BinaryDefense - IP addresses observed attacking honeypots",
+	"cinsscore_badguys":               "CI Army - Malicious IP addresses from various sources",
+	"greensnow_blocklist":             "GreenSnow - IP addresses with suspicious activity",
+}
+
 // Default URLs for Abuse.ch feeds
 const (
 	AbuseCHURLhausURL      = "https://urlhaus.abuse.ch/downloads/csv_recent/"

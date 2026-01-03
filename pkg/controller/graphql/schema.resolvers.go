@@ -10,7 +10,6 @@ import (
 	"errors"
 
 	goerr "github.com/m-mizutani/goerr/v2"
-	"github.com/secmon-lab/beehive/pkg/cli/config"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	graphql1 "github.com/secmon-lab/beehive/pkg/domain/model/graphql"
@@ -20,6 +19,17 @@ import (
 func (r *mutationResolver) Noop(ctx context.Context) (*bool, error) {
 	result := true
 	return &result, nil
+}
+
+// FetchSource is the resolver for the fetchSource field.
+func (r *mutationResolver) FetchSource(ctx context.Context, sourceID string) (*graphql1.History, error) {
+	// Execute fetch for the specified source using cached sourcesMap
+	history, err := r.fetchUseCase.FetchSourceByID(ctx, r.sourcesMap, sourceID)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to fetch source", goerr.V("source_id", sourceID))
+	}
+
+	return toGraphQLHistory(history), nil
 }
 
 // Health is the resolver for the health field.
@@ -68,12 +78,6 @@ func (r *queryResolver) GetIoC(ctx context.Context, id string) (*graphql1.IoC, e
 
 // ListSources is the resolver for the listSources field.
 func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, error) {
-	// Load sources configuration
-	sources, err := config.LoadSources(r.sourcesConfigPath)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to load sources config")
-	}
-
 	// Get loaders from context
 	loaders := LoadersFromContext(ctx)
 
@@ -83,15 +87,40 @@ func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, er
 		gqlSrc *graphql1.Source
 		thunk  func() (*model.SourceState, error)
 	}
-	sourceThunks := make([]sourceWithThunk, 0, len(sources.Sources))
+	sourceThunks := make([]sourceWithThunk, 0, len(r.sourcesMap))
 
-	for id, src := range sources.Sources {
+	// Iterate over cached sourcesMap
+	for id, src := range r.sourcesMap {
+		var srcType string
+		var schema *string
+		var schemaDescription *string
+		var description *string
+
+		if src.Type == model.SourceTypeRSS {
+			srcType = "rss"
+		} else {
+			srcType = "feed"
+			if src.FeedConfig != nil {
+				schema = &src.FeedConfig.Schema
+				if desc := getSchemaDescription(src.FeedConfig.Schema); desc != "" {
+					schemaDescription = &desc
+				}
+			}
+		}
+
+		if src.Description != "" {
+			description = &src.Description
+		}
+
 		gqlSrc := &graphql1.Source{
-			ID:      id,
-			Type:    string(src.Type),
-			URL:     src.URL,
-			Tags:    src.Tags,
-			Enabled: src.Enabled,
+			ID:                id,
+			Type:              srcType,
+			URL:               src.URL,
+			Schema:            schema,
+			SchemaDescription: schemaDescription,
+			Description:       description,
+			Tags:              src.Tags,
+			Enabled:           src.Enabled,
 		}
 
 		// Queue data loader request (doesn't execute yet)
@@ -116,6 +145,59 @@ func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, er
 	return result, nil
 }
 
+// GetSource is the resolver for the getSource field.
+func (r *queryResolver) GetSource(ctx context.Context, id string) (*graphql1.Source, error) {
+	// Look up source in cached sourcesMap
+	src, found := r.sourcesMap[id]
+	if !found {
+		return nil, goerr.New("source not found", goerr.V("id", id))
+	}
+
+	var srcType string
+	var schema *string
+	var schemaDescription *string
+	var description *string
+
+	if src.Type == model.SourceTypeRSS {
+		srcType = "rss"
+	} else {
+		srcType = "feed"
+		if src.FeedConfig != nil {
+			schema = &src.FeedConfig.Schema
+			if desc := getSchemaDescription(src.FeedConfig.Schema); desc != "" {
+				schemaDescription = &desc
+			}
+		}
+	}
+
+	if src.Description != "" {
+		description = &src.Description
+	}
+
+	gqlSrc := &graphql1.Source{
+		ID:                id,
+		Type:              srcType,
+		URL:               src.URL,
+		Schema:            schema,
+		SchemaDescription: schemaDescription,
+		Description:       description,
+		Tags:              src.Tags,
+		Enabled:           src.Enabled,
+	}
+
+	// Get source state from repository
+	state, err := r.repo.GetState(ctx, id)
+	if err != nil && !errors.Is(err, interfaces.ErrSourceStateNotFound) {
+		return nil, goerr.Wrap(err, "failed to get source state", goerr.V("id", id))
+	}
+
+	if state != nil {
+		gqlSrc.State = toGraphQLSourceState(state)
+	}
+
+	return gqlSrc, nil
+}
+
 // ListHistories is the resolver for the listHistories field.
 func (r *queryResolver) ListHistories(ctx context.Context, sourceID string, limit *int, offset *int) (*graphql1.HistoryConnection, error) {
 	actualLimit := 0
@@ -128,7 +210,7 @@ func (r *queryResolver) ListHistories(ctx context.Context, sourceID string, limi
 		actualOffset = *offset
 	}
 
-	histories, total, err := r.repo.ListHistoriesBySource(ctx, sourceID, actualLimit, actualOffset)
+	histories, _, err := r.repo.ListHistoriesBySource(ctx, sourceID, actualLimit, actualOffset)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to list histories",
 			goerr.V("source_id", sourceID),
@@ -143,7 +225,7 @@ func (r *queryResolver) ListHistories(ctx context.Context, sourceID string, limi
 
 	return &graphql1.HistoryConnection{
 		Items: items,
-		Total: total,
+		Total: nil, // Not computed for performance reasons
 	}, nil
 }
 
