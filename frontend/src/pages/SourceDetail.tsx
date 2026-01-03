@@ -19,6 +19,9 @@ interface Source {
   id: string
   type: string
   url: string
+  schema?: string
+  schemaDescription?: string
+  description?: string
   tags: string[]
   enabled: boolean
   state?: SourceState
@@ -233,6 +236,24 @@ function SourceDetail() {
           <div className={styles.fieldValue}>{source.type}</div>
         </div>
 
+        {source.type === 'feed' && source.schema && (
+          <>
+            <div className={styles.field}>
+              <div className={styles.fieldLabel}>Schema</div>
+              <div className={styles.fieldValue}>
+                <code className={styles.schema}>{source.schema}</code>
+              </div>
+            </div>
+
+            {source.schemaDescription && (
+              <div className={styles.field}>
+                <div className={styles.fieldLabel}>Schema Description</div>
+                <div className={styles.fieldValue}>{source.schemaDescription}</div>
+              </div>
+            )}
+          </>
+        )}
+
         <div className={styles.field}>
           <div className={styles.fieldLabel}>URL</div>
           <div className={styles.fieldValue}>
@@ -241,6 +262,13 @@ function SourceDetail() {
             </a>
           </div>
         </div>
+
+        {source.description && (
+          <div className={styles.field}>
+            <div className={styles.fieldLabel}>Description</div>
+            <div className={styles.fieldValue}>{source.description}</div>
+          </div>
+        )}
 
         <div className={styles.field}>
           <div className={styles.fieldLabel}>Tags</div>

@@ -44,6 +44,9 @@ type Source {
   id: ID!
   type: String!
   url: String!
+  schema: String
+  schemaDescription: String
+  description: String
   tags: [String!]!
   enabled: Boolean!
   state: SourceState

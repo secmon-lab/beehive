@@ -17,12 +17,13 @@ type SourcesConfig struct {
 
 // Source represents a single source configuration
 type Source struct {
-	Type       SourceType  `toml:"type"`
-	URL        string      `toml:"url"`
-	Tags       []string    `toml:"tags"`
-	Enabled    bool        `toml:"enabled"`
-	RSSConfig  *RSSConfig  `toml:"rss_config,omitempty"`  // Only for type="rss"
-	FeedConfig *FeedConfig `toml:"feed_config,omitempty"` // Only for type="feed"
+	Type        SourceType  `toml:"type"`
+	URL         string      `toml:"url"`
+	Description string      `toml:"description"` // User-defined description from config
+	Tags        []string    `toml:"tags"`
+	Enabled     bool        `toml:"enabled"`
+	RSSConfig   *RSSConfig  `toml:"rss_config,omitempty"`  // Only for type="rss"
+	FeedConfig  *FeedConfig `toml:"feed_config,omitempty"` // Only for type="feed"
 }
 
 // RSSConfig contains RSS-specific configuration

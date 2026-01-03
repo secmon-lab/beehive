@@ -92,18 +92,35 @@ func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, er
 	// Iterate over cached sourcesMap
 	for id, src := range r.sourcesMap {
 		var srcType string
+		var schema *string
+		var schemaDescription *string
+		var description *string
+
 		if src.Type == model.SourceTypeRSS {
 			srcType = "rss"
 		} else {
 			srcType = "feed"
+			if src.FeedConfig != nil {
+				schema = &src.FeedConfig.Schema
+				if desc := getSchemaDescription(src.FeedConfig.Schema); desc != "" {
+					schemaDescription = &desc
+				}
+			}
+		}
+
+		if src.Description != "" {
+			description = &src.Description
 		}
 
 		gqlSrc := &graphql1.Source{
-			ID:      id,
-			Type:    srcType,
-			URL:     src.URL,
-			Tags:    src.Tags,
-			Enabled: src.Enabled,
+			ID:                id,
+			Type:              srcType,
+			URL:               src.URL,
+			Schema:            schema,
+			SchemaDescription: schemaDescription,
+			Description:       description,
+			Tags:              src.Tags,
+			Enabled:           src.Enabled,
 		}
 
 		// Queue data loader request (doesn't execute yet)
@@ -137,18 +154,35 @@ func (r *queryResolver) GetSource(ctx context.Context, id string) (*graphql1.Sou
 	}
 
 	var srcType string
+	var schema *string
+	var schemaDescription *string
+	var description *string
+
 	if src.Type == model.SourceTypeRSS {
 		srcType = "rss"
 	} else {
 		srcType = "feed"
+		if src.FeedConfig != nil {
+			schema = &src.FeedConfig.Schema
+			if desc := getSchemaDescription(src.FeedConfig.Schema); desc != "" {
+				schemaDescription = &desc
+			}
+		}
+	}
+
+	if src.Description != "" {
+		description = &src.Description
 	}
 
 	gqlSrc := &graphql1.Source{
-		ID:      id,
-		Type:    srcType,
-		URL:     src.URL,
-		Tags:    src.Tags,
-		Enabled: src.Enabled,
+		ID:                id,
+		Type:              srcType,
+		URL:               src.URL,
+		Schema:            schema,
+		SchemaDescription: schemaDescription,
+		Description:       description,
+		Tags:              src.Tags,
+		Enabled:           src.Enabled,
 	}
 
 	// Get source state from repository

@@ -77,12 +77,15 @@ type Query struct {
 }
 
 type Source struct {
-	ID      string       `json:"id"`
-	Type    string       `json:"type"`
-	URL     string       `json:"url"`
-	Tags    []string     `json:"tags"`
-	Enabled bool         `json:"enabled"`
-	State   *SourceState `json:"state,omitempty"`
+	ID                string       `json:"id"`
+	Type              string       `json:"type"`
+	URL               string       `json:"url"`
+	Schema            *string      `json:"schema,omitempty"`
+	SchemaDescription *string      `json:"schemaDescription,omitempty"`
+	Description       *string      `json:"description,omitempty"`
+	Tags              []string     `json:"tags"`
+	Enabled           bool         `json:"enabled"`
+	State             *SourceState `json:"state,omitempty"`
 }
 
 type SourceState struct {

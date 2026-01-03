@@ -116,12 +116,15 @@ type ComplexityRoot struct {
 	}
 
 	Source struct {
-		Enabled func(childComplexity int) int
-		ID      func(childComplexity int) int
-		State   func(childComplexity int) int
-		Tags    func(childComplexity int) int
-		Type    func(childComplexity int) int
-		URL     func(childComplexity int) int
+		Description       func(childComplexity int) int
+		Enabled           func(childComplexity int) int
+		ID                func(childComplexity int) int
+		Schema            func(childComplexity int) int
+		SchemaDescription func(childComplexity int) int
+		State             func(childComplexity int) int
+		Tags              func(childComplexity int) int
+		Type              func(childComplexity int) int
+		URL               func(childComplexity int) int
 	}
 
 	SourceState struct {
@@ -472,6 +475,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Query.ListSources(childComplexity), true
 
+	case "Source.description":
+		if e.complexity.Source.Description == nil {
+			break
+		}
+
+		return e.complexity.Source.Description(childComplexity), true
 	case "Source.enabled":
 		if e.complexity.Source.Enabled == nil {
 			break
@@ -484,6 +493,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Source.ID(childComplexity), true
+	case "Source.schema":
+		if e.complexity.Source.Schema == nil {
+			break
+		}
+
+		return e.complexity.Source.Schema(childComplexity), true
+	case "Source.schemaDescription":
+		if e.complexity.Source.SchemaDescription == nil {
+			break
+		}
+
+		return e.complexity.Source.SchemaDescription(childComplexity), true
 	case "Source.state":
 		if e.complexity.Source.State == nil {
 			break
@@ -716,6 +737,9 @@ type Source {
   id: ID!
   type: String!
   url: String!
+  schema: String
+  schemaDescription: String
+  description: String
   tags: [String!]!
   enabled: Boolean!
   state: SourceState
@@ -2295,6 +2319,12 @@ func (ec *executionContext) fieldContext_Query_listSources(_ context.Context, fi
 				return ec.fieldContext_Source_type(ctx, field)
 			case "url":
 				return ec.fieldContext_Source_url(ctx, field)
+			case "schema":
+				return ec.fieldContext_Source_schema(ctx, field)
+			case "schemaDescription":
+				return ec.fieldContext_Source_schemaDescription(ctx, field)
+			case "description":
+				return ec.fieldContext_Source_description(ctx, field)
 			case "tags":
 				return ec.fieldContext_Source_tags(ctx, field)
 			case "enabled":
@@ -2339,6 +2369,12 @@ func (ec *executionContext) fieldContext_Query_getSource(ctx context.Context, fi
 				return ec.fieldContext_Source_type(ctx, field)
 			case "url":
 				return ec.fieldContext_Source_url(ctx, field)
+			case "schema":
+				return ec.fieldContext_Source_schema(ctx, field)
+			case "schemaDescription":
+				return ec.fieldContext_Source_schemaDescription(ctx, field)
+			case "description":
+				return ec.fieldContext_Source_description(ctx, field)
 			case "tags":
 				return ec.fieldContext_Source_tags(ctx, field)
 			case "enabled":
@@ -2668,6 +2704,93 @@ func (ec *executionContext) _Source_url(ctx context.Context, field graphql.Colle
 }
 
 func (ec *executionContext) fieldContext_Source_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_schema(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_schema,
+		func(ctx context.Context) (any, error) {
+			return obj.Schema, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_schema(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_schemaDescription(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_schemaDescription,
+		func(ctx context.Context) (any, error) {
+			return obj.SchemaDescription, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_schemaDescription(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Source",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Source_description(ctx context.Context, field graphql.CollectedField, obj *graphql1.Source) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Source_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Source_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Source",
 		Field:      field,
@@ -5197,6 +5320,12 @@ func (ec *executionContext) _Source(ctx context.Context, sel ast.SelectionSet, o
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "schema":
+			out.Values[i] = ec._Source_schema(ctx, field, obj)
+		case "schemaDescription":
+			out.Values[i] = ec._Source_schemaDescription(ctx, field, obj)
+		case "description":
+			out.Values[i] = ec._Source_description(ctx, field, obj)
 		case "tags":
 			out.Values[i] = ec._Source_tags(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

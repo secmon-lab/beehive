@@ -44,6 +44,9 @@ export const LIST_SOURCES = gql`
       id
       type
       url
+      schema
+      schemaDescription
+      description
       tags
       enabled
       state {
@@ -67,6 +70,9 @@ export const GET_SOURCE = gql`
       id
       type
       url
+      schema
+      schemaDescription
+      description
       tags
       enabled
       state {

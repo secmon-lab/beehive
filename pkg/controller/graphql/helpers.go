@@ -6,6 +6,7 @@ import (
 
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	graphql1 "github.com/secmon-lab/beehive/pkg/domain/model/graphql"
+	"github.com/secmon-lab/beehive/pkg/service/feed"
 )
 
 func ptrIntValue(ptr *int) int {
@@ -161,4 +162,11 @@ func ensureStringSlice(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+func getSchemaDescription(schema string) string {
+	if desc, ok := feed.SchemaDescriptions[schema]; ok {
+		return desc
+	}
+	return ""
 }
