@@ -121,7 +121,8 @@ tags = ["test"]
 
 	uc := usecase.New(countingRepo)
 	fetchUC := usecase.NewFetchUseCase(countingRepo, nil)
-	resolver := gqlcontroller.NewResolver(countingRepo, uc, fetchUC, configPath)
+	resolver, err := gqlcontroller.NewResolver(countingRepo, uc, fetchUC, configPath)
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `

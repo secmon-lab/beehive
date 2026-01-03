@@ -55,7 +55,8 @@ func TestGraphQL_Health(t *testing.T) {
 	repo := memory.New()
 	uc := usecase.New(repo)
 	fetchUC := usecase.NewFetchUseCase(repo, nil)
-	resolver := gqlcontroller.NewResolver(repo, uc, fetchUC, "")
+	resolver, err := gqlcontroller.NewResolver(repo, uc, fetchUC, "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `query { health }`
@@ -66,7 +67,7 @@ func TestGraphQL_Health(t *testing.T) {
 	var data struct {
 		Health string `json:"health"`
 	}
-	err := json.Unmarshal(resp.Data, &data)
+	err = json.Unmarshal(resp.Data, &data)
 	gt.NoError(t, err)
 	gt.S(t, data.Health).Equal("OK").Describe("health check should return OK")
 }
@@ -108,7 +109,8 @@ func TestGraphQL_ListIoCs(t *testing.T) {
 	}
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	resolver, err := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -143,7 +145,7 @@ func TestGraphQL_ListIoCs(t *testing.T) {
 			} `json:"items"`
 		} `json:"listIoCs"`
 	}
-	err := json.Unmarshal(resp.Data, &data)
+	err = json.Unmarshal(resp.Data, &data)
 	gt.NoError(t, err)
 
 	gt.N(t, data.ListIoCs.Total).Equal(2).Describe("total should be 2")
@@ -185,7 +187,8 @@ func TestGraphQL_GetIoC(t *testing.T) {
 	gt.NoError(t, err)
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	resolver, err := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -280,7 +283,8 @@ func TestGraphQL_ListHistories(t *testing.T) {
 	gt.NoError(t, err)
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	resolver, err := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -404,7 +408,8 @@ func TestGraphQL_GetHistory(t *testing.T) {
 	gt.NoError(t, err)
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	resolver, err := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
+	gt.NoError(t, err)
 	server := httpcontroller.New(resolver)
 
 	query := `

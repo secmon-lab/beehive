@@ -10,7 +10,6 @@ import (
 	"errors"
 
 	goerr "github.com/m-mizutani/goerr/v2"
-	"github.com/secmon-lab/beehive/pkg/cli/config"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	graphql1 "github.com/secmon-lab/beehive/pkg/domain/model/graphql"
@@ -24,44 +23,8 @@ func (r *mutationResolver) Noop(ctx context.Context) (*bool, error) {
 
 // FetchSource is the resolver for the fetchSource field.
 func (r *mutationResolver) FetchSource(ctx context.Context, sourceID string) (*graphql1.History, error) {
-	// Load sources configuration
-	cfg, err := config.LoadConfig(r.sourcesConfigPath)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to load sources config")
-	}
-
-	// Convert config to model.Source map
-	sourcesMap := make(map[string]model.Source)
-
-	// Add RSS sources
-	for id, src := range cfg.RSS {
-		sourcesMap[id] = model.Source{
-			Type:    model.SourceTypeRSS,
-			URL:     src.URL,
-			Tags:    ensureStringSlice(src.Tags.Strings()),
-			Enabled: !src.Disabled,
-			RSSConfig: &model.RSSConfig{
-				MaxArticles: src.MaxArticles,
-			},
-		}
-	}
-
-	// Add Feed sources
-	for id, src := range cfg.Feed {
-		sourcesMap[id] = model.Source{
-			Type:    model.SourceTypeFeed,
-			URL:     src.GetURL(),
-			Tags:    ensureStringSlice(src.Tags.Strings()),
-			Enabled: !src.Disabled,
-			FeedConfig: &model.FeedConfig{
-				Schema:   string(src.Schema),
-				MaxItems: src.MaxItems,
-			},
-		}
-	}
-
-	// Execute fetch for the specified source
-	history, err := r.fetchUseCase.FetchSourceByID(ctx, sourcesMap, sourceID)
+	// Execute fetch for the specified source using cached sourcesMap
+	history, err := r.fetchUseCase.FetchSourceByID(ctx, r.sourcesMap, sourceID)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to fetch source", goerr.V("source_id", sourceID))
 	}
@@ -115,12 +78,6 @@ func (r *queryResolver) GetIoC(ctx context.Context, id string) (*graphql1.IoC, e
 
 // ListSources is the resolver for the listSources field.
 func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, error) {
-	// Load sources configuration using LoadConfig
-	cfg, err := config.LoadConfig(r.sourcesConfigPath)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to load sources config")
-	}
-
 	// Get loaders from context
 	loaders := LoadersFromContext(ctx)
 
@@ -130,31 +87,23 @@ func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, er
 		gqlSrc *graphql1.Source
 		thunk  func() (*model.SourceState, error)
 	}
-	sourceThunks := make([]sourceWithThunk, 0, len(cfg.RSS)+len(cfg.Feed))
+	sourceThunks := make([]sourceWithThunk, 0, len(r.sourcesMap))
 
-	// Add RSS sources
-	for id, src := range cfg.RSS {
-		gqlSrc := &graphql1.Source{
-			ID:      id,
-			Type:    "rss",
-			URL:     src.URL,
-			Tags:    ensureStringSlice(src.Tags.Strings()),
-			Enabled: !src.Disabled,
+	// Iterate over cached sourcesMap
+	for id, src := range r.sourcesMap {
+		var srcType string
+		if src.Type == model.SourceTypeRSS {
+			srcType = "rss"
+		} else {
+			srcType = "feed"
 		}
 
-		// Queue data loader request (doesn't execute yet)
-		thunk := loaders.SourceStateLoader.Load(ctx, id)
-		sourceThunks = append(sourceThunks, sourceWithThunk{gqlSrc: gqlSrc, thunk: thunk})
-	}
-
-	// Add Feed sources
-	for id, src := range cfg.Feed {
 		gqlSrc := &graphql1.Source{
 			ID:      id,
-			Type:    "feed",
-			URL:     src.GetURL(),
-			Tags:    ensureStringSlice(src.Tags.Strings()),
-			Enabled: !src.Disabled,
+			Type:    srcType,
+			URL:     src.URL,
+			Tags:    src.Tags,
+			Enabled: src.Enabled,
 		}
 
 		// Queue data loader request (doesn't execute yet)
@@ -181,34 +130,25 @@ func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, er
 
 // GetSource is the resolver for the getSource field.
 func (r *queryResolver) GetSource(ctx context.Context, id string) (*graphql1.Source, error) {
-	// Load sources configuration
-	cfg, err := config.LoadConfig(r.sourcesConfigPath)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to load sources config")
+	// Look up source in cached sourcesMap
+	src, found := r.sourcesMap[id]
+	if !found {
+		return nil, goerr.New("source not found", goerr.V("id", id))
 	}
 
-	var gqlSrc *graphql1.Source
-
-	// Check in RSS sources
-	if rssSrc, found := cfg.RSS[id]; found {
-		gqlSrc = &graphql1.Source{
-			ID:      id,
-			Type:    "rss",
-			URL:     rssSrc.URL,
-			Tags:    ensureStringSlice(rssSrc.Tags.Strings()),
-			Enabled: !rssSrc.Disabled,
-		}
-	} else if feedSrc, found := cfg.Feed[id]; found {
-		// Check in Feed sources
-		gqlSrc = &graphql1.Source{
-			ID:      id,
-			Type:    "feed",
-			URL:     feedSrc.GetURL(),
-			Tags:    ensureStringSlice(feedSrc.Tags.Strings()),
-			Enabled: !feedSrc.Disabled,
-		}
+	var srcType string
+	if src.Type == model.SourceTypeRSS {
+		srcType = "rss"
 	} else {
-		return nil, goerr.New("source not found", goerr.V("id", id))
+		srcType = "feed"
+	}
+
+	gqlSrc := &graphql1.Source{
+		ID:      id,
+		Type:    srcType,
+		URL:     src.URL,
+		Tags:    src.Tags,
+		Enabled: src.Enabled,
 	}
 
 	// Get source state from repository

@@ -115,7 +115,10 @@ func cmdServe() *cli.Command {
 			fetchUC := usecase.NewFetchUseCase(repo, llmClient)
 
 			// Initialize GraphQL resolver
-			gqlResolver := graphql.NewResolver(repo, uc, fetchUC, configPath)
+			gqlResolver, err := graphql.NewResolver(repo, uc, fetchUC, configPath)
+			if err != nil {
+				return goerr.Wrap(err, "failed to create GraphQL resolver")
+			}
 
 			// Create HTTP server
 			handler := httpctrl.New(gqlResolver, httpctrl.WithGraphiQL(enableGraphiQL))
