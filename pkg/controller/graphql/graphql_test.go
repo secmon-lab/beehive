@@ -322,7 +322,7 @@ func TestGraphQL_ListHistories(t *testing.T) {
 
 	var data struct {
 		ListHistories struct {
-			Total int `json:"total"`
+			Total *int `json:"total"`
 			Items []struct {
 				ID            string `json:"id"`
 				SourceID      string `json:"sourceID"`
@@ -346,7 +346,7 @@ func TestGraphQL_ListHistories(t *testing.T) {
 	err = json.Unmarshal(resp.Data, &data)
 	gt.NoError(t, err)
 
-	gt.N(t, data.ListHistories.Total).Equal(2).Describe("total should be 2")
+	// Total is not computed for performance reasons
 	gt.A(t, data.ListHistories.Items).Length(2).Describe("should have 2 items")
 
 	// Verify histories are sorted by newest first

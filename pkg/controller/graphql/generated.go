@@ -766,7 +766,7 @@ type History {
 
 type HistoryConnection {
   items: [History!]!
-  total: Int!
+  total: Int
 }
 
 type Query {
@@ -1542,9 +1542,9 @@ func (ec *executionContext) _HistoryConnection_total(ctx context.Context, field 
 			return obj.Total, nil
 		},
 		nil,
-		ec.marshalNInt2int,
+		ec.marshalOInt2ᚖint,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -4726,9 +4726,6 @@ func (ec *executionContext) _HistoryConnection(ctx context.Context, sel ast.Sele
 			}
 		case "total":
 			out.Values[i] = ec._HistoryConnection_total(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

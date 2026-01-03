@@ -94,7 +94,7 @@ type History {
 
 type HistoryConnection {
   items: [History!]!
-  total: Int!
+  total: Int
 }
 
 type Query {

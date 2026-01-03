@@ -55,7 +55,7 @@ interface GetSourceData {
 interface ListHistoriesData {
   listHistories: {
     items: History[]
-    total: number
+    total: number | null
   }
 }
 
@@ -70,7 +70,6 @@ interface FetchSourceData {
 function SourceDetail() {
   const { id } = useParams<{ id: string }>()
   const [pollingHistoryId, setPollingHistoryId] = useState<string | null>(null)
-  const [latestHistory, setLatestHistory] = useState<History | null>(null)
 
   const { loading: sourceLoading, error: sourceError, data: sourceData } = useQuery<GetSourceData>(
     GET_SOURCE,
@@ -95,7 +94,6 @@ function SourceDetail() {
     {
       onCompleted: (data) => {
         const history = data.fetchSource
-        setLatestHistory(history)
         // Start polling if status is not completed
         if (history.status !== 'success' && history.status !== 'error') {
           setPollingHistoryId(history.id)
@@ -114,7 +112,6 @@ function SourceDetail() {
     fetchPolicy: 'network-only',
     onCompleted: (data) => {
       if (data.getHistory) {
-        setLatestHistory(data.getHistory)
         // Stop polling if status is completed
         if (data.getHistory.status === 'success' || data.getHistory.status === 'error') {
           setPollingHistoryId(null)

@@ -36,7 +36,7 @@ type History struct {
 
 type HistoryConnection struct {
 	Items []*History `json:"items"`
-	Total int        `json:"total"`
+	Total *int       `json:"total,omitempty"`
 }
 
 type IoC struct {
