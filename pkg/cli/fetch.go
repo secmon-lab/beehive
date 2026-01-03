@@ -2,7 +2,7 @@ package cli
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -212,10 +212,9 @@ func convertConfigToSourcesMap(cfg *config.Config) map[string]model.Source {
 	return sourcesMap
 }
 
-// printFetchResults prints the fetch results to stdout
+// printFetchResults prints the fetch results using structured logging
 func printFetchResults(histories []*model.History) {
-	fmt.Println("\n=== Fetch Results ===")
-	fmt.Println()
+	logger := logging.Default()
 
 	totalItems := 0
 	totalExtracted := 0
@@ -225,15 +224,17 @@ func printFetchResults(histories []*model.History) {
 	totalErrors := 0
 
 	for _, h := range histories {
-		fmt.Printf("Source: %s (%s)\n", h.SourceID, h.SourceType)
-		fmt.Printf("  Items Fetched:   %d\n", h.ItemsFetched)
-		fmt.Printf("  IoCs Extracted:  %d\n", h.IoCsExtracted)
-		fmt.Printf("  IoCs Created:    %d\n", h.IoCsCreated)
-		fmt.Printf("  IoCs Updated:    %d\n", h.IoCsUpdated)
-		fmt.Printf("  IoCs Unchanged:  %d\n", h.IoCsUnchanged)
-		fmt.Printf("  Errors:          %d\n", h.ErrorCount)
-		fmt.Printf("  Processing Time: %v\n", h.ProcessingTime)
-		fmt.Println()
+		logger.Info("Source fetch result",
+			slog.String("source_id", h.SourceID),
+			slog.String("source_type", string(h.SourceType)),
+			slog.Int("items_fetched", h.ItemsFetched),
+			slog.Int("iocs_extracted", h.IoCsExtracted),
+			slog.Int("iocs_created", h.IoCsCreated),
+			slog.Int("iocs_updated", h.IoCsUpdated),
+			slog.Int("iocs_unchanged", h.IoCsUnchanged),
+			slog.Int("errors", h.ErrorCount),
+			slog.Duration("processing_time", h.ProcessingTime),
+		)
 
 		totalItems += h.ItemsFetched
 		totalExtracted += h.IoCsExtracted
@@ -243,13 +244,13 @@ func printFetchResults(histories []*model.History) {
 		totalErrors += h.ErrorCount
 	}
 
-	fmt.Println("=== Summary ===")
-	fmt.Printf("Total Sources Processed: %d\n", len(histories))
-	fmt.Printf("Total Items Fetched:     %d\n", totalItems)
-	fmt.Printf("Total IoCs Extracted:    %d\n", totalExtracted)
-	fmt.Printf("Total IoCs Created:      %d\n", totalCreated)
-	fmt.Printf("Total IoCs Updated:      %d\n", totalUpdated)
-	fmt.Printf("Total IoCs Unchanged:    %d\n", totalUnchanged)
-	fmt.Printf("Total Errors:            %d\n", totalErrors)
-	fmt.Println()
+	logger.Info("Fetch summary",
+		slog.Int("total_sources", len(histories)),
+		slog.Int("total_items", totalItems),
+		slog.Int("total_extracted", totalExtracted),
+		slog.Int("total_created", totalCreated),
+		slog.Int("total_updated", totalUpdated),
+		slog.Int("total_unchanged", totalUnchanged),
+		slog.Int("total_errors", totalErrors),
+	)
 }

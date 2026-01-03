@@ -151,19 +151,40 @@ func TestGraphQL_ListIoCs(t *testing.T) {
 	gt.N(t, data.ListIoCs.Total).Equal(2).Describe("total should be 2")
 	gt.A(t, data.ListIoCs.Items).Length(2).Describe("should have 2 items")
 
-	// Verify first IoC
-	gt.A(t, data.ListIoCs.Items).At(0, func(t testing.TB, item struct {
+	// Verify that we have both expected IoCs (order is not guaranteed without sort)
+	gt.A(t, data.ListIoCs.Items).Any(func(item struct {
 		ID          string `json:"id"`
 		SourceID    string `json:"sourceID"`
 		Type        string `json:"type"`
 		Value       string `json:"value"`
 		Description string `json:"description"`
 		Status      string `json:"status"`
-	}) {
-		gt.S(t, item.SourceID).Equal("source-1").Describe("first IoC sourceID")
-		gt.S(t, item.Type).Equal("ipv4").Describe("first IoC type")
-		gt.S(t, item.Status).Equal("active").Describe("first IoC status")
-	})
+	}) bool {
+		return item.Type == "ipv4" && item.Value == "192.0.2.1"
+	}).Describe("should have ipv4 IoC")
+
+	gt.A(t, data.ListIoCs.Items).Any(func(item struct {
+		ID          string `json:"id"`
+		SourceID    string `json:"sourceID"`
+		Type        string `json:"type"`
+		Value       string `json:"value"`
+		Description string `json:"description"`
+		Status      string `json:"status"`
+	}) bool {
+		return item.Type == "domain" && item.Value == "evil.example.com"
+	}).Describe("should have domain IoC")
+
+	// Verify all items have correct sourceID and status
+	gt.A(t, data.ListIoCs.Items).All(func(item struct {
+		ID          string `json:"id"`
+		SourceID    string `json:"sourceID"`
+		Type        string `json:"type"`
+		Value       string `json:"value"`
+		Description string `json:"description"`
+		Status      string `json:"status"`
+	}) bool {
+		return item.SourceID == "source-1" && item.Status == "active"
+	}).Describe("all IoCs should have correct sourceID and status")
 }
 
 func TestGraphQL_GetIoC(t *testing.T) {
