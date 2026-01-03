@@ -318,6 +318,7 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 		state.LastItemID = latestArticle.GUID
 		state.LastItemDate = latestArticle.PublishedAt
 	}
+	state.ItemCount += int64(len(newArticles))
 
 	state.ErrorCount += int64(stats.ErrorCount)
 	state.LastStatus = string(model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched))
@@ -394,6 +395,21 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 
 	if source.FeedConfig == nil || source.FeedConfig.Schema == "" {
 		return stats, goerr.New("feed config not specified", goerr.V("source_id", sourceID))
+	}
+
+	// Get previous state
+	state, err := uc.repo.GetState(ctx, sourceID)
+	if err != nil {
+		if errors.Is(err, interfaces.ErrSourceStateNotFound) {
+			// No previous state found - this is expected for first run
+			logger.Info("no previous state found, starting fresh", "source_id", sourceID)
+			state = &model.SourceState{
+				SourceID: sourceID,
+			}
+		} else {
+			// Unexpected error - fail fast to avoid re-processing
+			return stats, goerr.Wrap(err, "failed to get source state")
+		}
 	}
 
 	// Fetch feed entries
@@ -533,15 +549,15 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 	}
 
 	// Update source state
-	state := &model.SourceState{
-		SourceID:      sourceID,
-		LastFetchedAt: time.Now(),
-		ErrorCount:    int64(stats.ErrorCount),
-		LastStatus:    string(model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched)),
-	}
+	state.LastFetchedAt = time.Now()
+	state.ItemCount += int64(stats.ItemsFetched)
+	state.ErrorCount += int64(stats.ErrorCount)
+	state.LastStatus = string(model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched))
 
 	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
+	} else {
+		state.LastError = ""
 	}
 
 	// Ensure SourceID is set (defensive check)
