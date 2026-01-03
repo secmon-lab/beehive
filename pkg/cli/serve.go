@@ -27,13 +27,14 @@ func cmdServe() *cli.Command {
 		enableGraphiQL bool
 		configPath     string
 		firestoreCfg   config.Firestore
+		llmCfg         config.LLM
 	)
 
 	return &cli.Command{
 		Name:    "serve",
 		Aliases: []string{"s"},
 		Usage:   "Start HTTP server",
-		Flags: append(firestoreCfg.Flags(),
+		Flags: append(append(firestoreCfg.Flags(), llmCfg.Flags()...),
 			&cli.StringFlag{
 				Name:        "addr",
 				Usage:       "HTTP server address",
@@ -59,6 +60,17 @@ func cmdServe() *cli.Command {
 		),
 		Action: func(ctx context.Context, c *cli.Command) error {
 			logger := logging.Default()
+
+			// Log all configuration
+			logger.Info("Server configuration",
+				"addr", addr,
+				"graphiql", enableGraphiQL,
+				"config_path", configPath,
+				"firestore_project", firestoreCfg.ProjectID,
+				"firestore_database", firestoreCfg.DatabaseID,
+				"llm_provider", llmCfg.Provider,
+				"llm_model", llmCfg.Model,
+			)
 
 			// Initialize repository
 			var repo interfaces.Repository
@@ -92,11 +104,18 @@ func cmdServe() *cli.Command {
 				logger.Info("using in-memory repository with sample data")
 			}
 
+			// Initialize LLM client
+			llmClient, err := llmCfg.NewLLMClient(ctx)
+			if err != nil {
+				return goerr.Wrap(err, "failed to create LLM client")
+			}
+
 			// Initialize use cases
 			uc := usecase.New(repo)
+			fetchUC := usecase.NewFetchUseCase(repo, llmClient)
 
 			// Initialize GraphQL resolver
-			gqlResolver := graphql.NewResolver(repo, uc, configPath)
+			gqlResolver := graphql.NewResolver(repo, uc, fetchUC, configPath)
 
 			// Create HTTP server
 			handler := httpctrl.New(gqlResolver, httpctrl.WithGraphiQL(enableGraphiQL))

@@ -1,5 +1,7 @@
 import { useQuery } from '@apollo/client'
+import { useNavigate } from 'react-router-dom'
 import { LIST_SOURCES } from '../graphql/queries'
+import { formatRelativeTime } from '../utils/time'
 import styles from './SourceList.module.css'
 
 interface SourceState {
@@ -9,6 +11,7 @@ interface SourceState {
   lastItemDate?: string
   itemCount: number
   errorCount: number
+  lastStatus?: string
   lastError?: string
   updatedAt: string
 }
@@ -27,7 +30,16 @@ interface ListSourcesData {
 }
 
 function SourceList() {
+  const navigate = useNavigate()
   const { loading, error, data } = useQuery<ListSourcesData>(LIST_SOURCES)
+
+  const handleRowClick = (sourceId: string, event: React.MouseEvent) => {
+    // Don't navigate if clicking on a link
+    if ((event.target as HTMLElement).tagName === 'A') {
+      return
+    }
+    navigate(`/sources/${sourceId}`)
+  }
 
   if (loading) {
     return (
@@ -67,15 +79,26 @@ function SourceList() {
                 <th>Tags</th>
                 <th>Enabled</th>
                 <th>Last Fetched</th>
-                <th>Item Count</th>
-                <th>Error Count</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {sources.map((source) => (
-                <tr key={source.id}>
+                <tr
+                  key={source.id}
+                  onClick={(e) => handleRowClick(source.id, e)}
+                  className={styles.clickableRow}
+                >
                   <td>{source.id}</td>
-                  <td>{source.type}</td>
+                  <td>
+                    <span
+                      className={`${styles.typeChip} ${
+                        source.type === 'rss' ? styles.typeRss : styles.typeFeed
+                      }`}
+                    >
+                      {source.type}
+                    </span>
+                  </td>
                   <td>
                     <a
                       href={source.url}
@@ -108,13 +131,34 @@ function SourceList() {
                       {source.enabled ? 'Enabled' : 'Disabled'}
                     </span>
                   </td>
-                  <td>
+                  <td
+                    title={
+                      source.state?.lastFetchedAt
+                        ? new Date(source.state.lastFetchedAt).toLocaleString()
+                        : undefined
+                    }
+                  >
                     {source.state?.lastFetchedAt
-                      ? new Date(source.state.lastFetchedAt).toLocaleString()
+                      ? formatRelativeTime(source.state.lastFetchedAt)
                       : '-'}
                   </td>
-                  <td>{source.state?.itemCount ?? '-'}</td>
-                  <td>{source.state?.errorCount ?? '-'}</td>
+                  <td>
+                    {source.state?.lastStatus ? (
+                      <span
+                        className={`${styles.badge} ${
+                          source.state.lastStatus === 'success'
+                            ? styles.badgeSuccess
+                            : source.state.lastStatus === 'error'
+                            ? styles.badgeError
+                            : styles.badgePartial
+                        }`}
+                      >
+                        {source.state.lastStatus}
+                      </span>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

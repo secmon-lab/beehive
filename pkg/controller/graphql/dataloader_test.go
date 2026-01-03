@@ -58,40 +58,27 @@ func TestGraphQL_ListSources_N_Plus_1_Problem(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "sources.toml")
 
 	sourcesConfig := `
-[sources.source-1]
-type = "rss"
+[rss.source-1]
 url = "https://example.com/rss1"
-enabled = true
 tags = ["test"]
 
-[sources.source-2]
-type = "rss"
+[rss.source-2]
 url = "https://example.com/rss2"
-enabled = true
 tags = ["test"]
 
-[sources.source-3]
-type = "feed"
-url = "https://example.com/feed1"
-enabled = true
-tags = ["test"]
-
-[sources.source-3.feed_config]
+[feed.source-3]
 schema = "abuse_ch_urlhaus"
-
-[sources.source-4]
-type = "feed"
-url = "https://example.com/feed2"
-enabled = true
+url = "https://example.com/feed1"
 tags = ["test"]
 
-[sources.source-4.feed_config]
+[feed.source-4]
 schema = "abuse_ch_threatfox"
+url = "https://example.com/feed2"
+tags = ["test"]
 
-[sources.source-5]
-type = "rss"
+[rss.source-5]
 url = "https://example.com/rss3"
-enabled = false
+disabled = true
 tags = ["test"]
 `
 	err := os.WriteFile(configPath, []byte(sourcesConfig), 0644)
@@ -133,7 +120,8 @@ tags = ["test"]
 	}
 
 	uc := usecase.New(countingRepo)
-	resolver := gqlcontroller.NewResolver(countingRepo, uc, configPath)
+	fetchUC := usecase.NewFetchUseCase(countingRepo, nil)
+	resolver := gqlcontroller.NewResolver(countingRepo, uc, fetchUC, configPath)
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -167,11 +155,15 @@ tags = ["test"]
 	w := httptest.NewRecorder()
 	server.ServeHTTP(w, req)
 
+	t.Logf("Response: %s", w.Body.String())
 	gt.N(t, w.Code).Equal(http.StatusOK).Describef("HTTP status should be 200, got %d: %s", w.Code, w.Body.String())
 
 	var resp graphQLResponse
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	gt.NoError(t, err)
+	if len(resp.Errors) > 0 {
+		t.Logf("GraphQL errors: %+v", resp.Errors)
+	}
 	gt.N(t, len(resp.Errors)).Equal(0).Describe("should have no GraphQL errors")
 
 	var data struct {

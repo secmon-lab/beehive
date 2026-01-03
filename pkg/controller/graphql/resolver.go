@@ -12,13 +12,15 @@ import (
 type Resolver struct {
 	repo              interfaces.Repository
 	uc                *usecase.UseCases
+	fetchUseCase      *usecase.FetchUseCase
 	sourcesConfigPath string
 }
 
-func NewResolver(repo interfaces.Repository, uc *usecase.UseCases, sourcesConfigPath string) *Resolver {
+func NewResolver(repo interfaces.Repository, uc *usecase.UseCases, fetchUseCase *usecase.FetchUseCase, sourcesConfigPath string) *Resolver {
 	return &Resolver{
 		repo:              repo,
 		uc:                uc,
+		fetchUseCase:      fetchUseCase,
 		sourcesConfigPath: sourcesConfigPath,
 	}
 }

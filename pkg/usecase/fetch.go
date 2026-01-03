@@ -312,24 +312,32 @@ func (uc *FetchUseCase) fetchRSS(ctx context.Context, sourceID string, source *m
 	}
 
 	// Update source state
+	state.LastFetchedAt = time.Now()
 	if len(newArticles) > 0 {
 		latestArticle := rss.GetLatestArticle(newArticles)
 		state.LastItemID = latestArticle.GUID
 		state.LastItemDate = latestArticle.PublishedAt
-		state.ItemCount += int64(len(newArticles))
-		state.LastFetchedAt = time.Now()
 	}
 
 	state.ErrorCount += int64(stats.ErrorCount)
+	state.LastStatus = string(model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched))
 	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
 	} else {
 		state.LastError = ""
 	}
 
+	// Ensure SourceID is set (should already be set from GetState or initialization)
+	if state.SourceID == "" {
+		logger.Warn("state.SourceID is empty, setting it",
+			"source_id", sourceID)
+		state.SourceID = sourceID
+	}
+
 	if err := uc.repo.SaveState(ctx, state); err != nil {
 		logger.Error("failed to save source state",
 			"source_id", sourceID,
+			"state_source_id", state.SourceID,
 			"error", err)
 	}
 
@@ -528,17 +536,25 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 	state := &model.SourceState{
 		SourceID:      sourceID,
 		LastFetchedAt: time.Now(),
-		ItemCount:     int64(len(entries)),
 		ErrorCount:    int64(stats.ErrorCount),
+		LastStatus:    string(model.DetermineFetchStatus(stats.ErrorCount, stats.ItemsFetched)),
 	}
 
 	if stats.ErrorCount > 0 {
 		state.LastError = "encountered errors during fetch"
 	}
 
+	// Ensure SourceID is set (defensive check)
+	if state.SourceID == "" {
+		logger.Warn("state.SourceID is empty, setting it",
+			"source_id", sourceID)
+		state.SourceID = sourceID
+	}
+
 	if err := uc.repo.SaveState(ctx, state); err != nil {
 		logger.Error("failed to save source state",
 			"source_id", sourceID,
+			"state_source_id", state.SourceID,
 			"error", err)
 	}
 
@@ -579,6 +595,82 @@ func (uc *FetchUseCase) fetchFeed(ctx context.Context, sourceID string, source *
 	}
 
 	return stats, nil
+}
+
+// FetchSourceByID executes fetch for a specific source ID
+func (uc *FetchUseCase) FetchSourceByID(ctx context.Context, sourcesMap map[string]model.Source, sourceID string) (*model.History, error) {
+	logger := logging.From(ctx)
+
+	// Find the source configuration
+	source, ok := sourcesMap[sourceID]
+	if !ok {
+		return nil, goerr.New("source not found", goerr.V("source_id", sourceID))
+	}
+
+	logger.Info("fetching from source", "source_id", sourceID, "type", source.Type)
+
+	var err error
+
+	switch source.Type {
+	case model.SourceTypeRSS:
+		_, err = uc.fetchRSS(ctx, sourceID, &source)
+	case model.SourceTypeFeed:
+		_, err = uc.fetchFeed(ctx, sourceID, &source)
+	default:
+		return nil, goerr.New("unknown source type",
+			goerr.V("source_id", sourceID),
+			goerr.V("type", source.Type))
+	}
+
+	if err != nil {
+		logger.Error("failed to fetch from source",
+			"source_id", sourceID,
+			"error", err)
+
+		// Create history for failed fetch
+		history := &model.History{
+			ID:             model.GenerateHistoryID(),
+			SourceID:       sourceID,
+			SourceType:     source.Type,
+			Status:         model.FetchStatusFailure,
+			StartedAt:      time.Now(),
+			CompletedAt:    time.Now(),
+			ProcessingTime: 0,
+			URLs:           []string{},
+			ItemsFetched:   0,
+			IoCsExtracted:  0,
+			IoCsCreated:    0,
+			IoCsUpdated:    0,
+			IoCsUnchanged:  0,
+			ErrorCount:     1,
+			Errors:         []*model.FetchError{model.ExtractErrorInfo(err)},
+			CreatedAt:      time.Now(),
+		}
+
+		if histErr := uc.repo.SaveHistory(ctx, history); histErr != nil {
+			logger.Error("failed to save fetch history",
+				"source_id", sourceID,
+				"history_id", history.ID,
+				"error", histErr)
+			return nil, goerr.Wrap(histErr, "failed to save fetch history")
+		}
+
+		return history, nil
+	}
+
+	// Retrieve the saved history from the repository
+	// The history was already saved in fetchRSS or fetchFeed
+	// We need to get the latest history for this source
+	histories, _, err := uc.repo.ListHistoriesBySource(ctx, sourceID, 1, 0)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to retrieve saved history")
+	}
+
+	if len(histories) == 0 {
+		return nil, goerr.New("no history found after successful fetch")
+	}
+
+	return histories[0], nil
 }
 
 // hasAnyTag checks if slice a contains any element from slice b

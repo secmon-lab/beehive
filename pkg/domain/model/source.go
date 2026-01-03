@@ -43,7 +43,8 @@ type SourceState struct {
 	LastItemID    string    // For RSS: last GUID, for feeds: last entry ID
 	LastItemDate  time.Time // Last item's published date
 	ItemCount     int64     // Total items processed
-	ErrorCount    int64     // Error count
+	ErrorCount    int64     // Total error count (cumulative)
+	LastStatus    string    // Last fetch status (success/error/partial)
 	LastError     string    // Last error message
 	UpdatedAt     time.Time
 }

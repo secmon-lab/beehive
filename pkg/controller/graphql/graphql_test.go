@@ -54,7 +54,8 @@ func executeGraphQL(t *testing.T, server *httpcontroller.Server, query string, v
 func TestGraphQL_Health(t *testing.T) {
 	repo := memory.New()
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	fetchUC := usecase.NewFetchUseCase(repo, nil)
+	resolver := gqlcontroller.NewResolver(repo, uc, fetchUC, "")
 	server := httpcontroller.New(resolver)
 
 	query := `query { health }`
@@ -107,7 +108,7 @@ func TestGraphQL_ListIoCs(t *testing.T) {
 	}
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	resolver := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -184,7 +185,7 @@ func TestGraphQL_GetIoC(t *testing.T) {
 	gt.NoError(t, err)
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	resolver := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -279,7 +280,7 @@ func TestGraphQL_ListHistories(t *testing.T) {
 	gt.NoError(t, err)
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	resolver := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
 	server := httpcontroller.New(resolver)
 
 	query := `
@@ -403,7 +404,7 @@ func TestGraphQL_GetHistory(t *testing.T) {
 	gt.NoError(t, err)
 
 	uc := usecase.New(repo)
-	resolver := gqlcontroller.NewResolver(repo, uc, "")
+	resolver := gqlcontroller.NewResolver(repo, uc, usecase.NewFetchUseCase(repo, nil), "")
 	server := httpcontroller.New(resolver)
 
 	query := `

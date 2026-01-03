@@ -92,8 +92,9 @@ type SourceState struct {
 	LastItemDate  *time.Time `json:"lastItemDate,omitempty"`
 	ItemCount     int        `json:"itemCount"`
 	ErrorCount    int        `json:"errorCount"`
+	LastStatus    *string    `json:"lastStatus,omitempty"`
 	LastError     *string    `json:"lastError,omitempty"`
-	UpdatedAt     time.Time  `json:"updatedAt"`
+	UpdatedAt     *time.Time `json:"updatedAt,omitempty"`
 }
 
 type IoCSortField string

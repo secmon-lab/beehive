@@ -56,8 +56,9 @@ type SourceState {
   lastItemDate: Time
   itemCount: Int!
   errorCount: Int!
+  lastStatus: String
   lastError: String
-  updatedAt: Time!
+  updatedAt: Time
 }
 
 type KeyValue {
@@ -101,10 +102,12 @@ type Query {
   listIoCs(options: IoCListOptions): IoCConnection!
   getIoC(id: ID!): IoC
   listSources: [Source!]!
+  getSource(id: ID!): Source
   listHistories(sourceID: String!, limit: Int, offset: Int): HistoryConnection!
   getHistory(sourceID: String!, id: ID!): History
 }
 
 type Mutation {
   noop: Boolean
+  fetchSource(sourceID: String!): History!
 }

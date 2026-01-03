@@ -22,6 +22,53 @@ func (r *mutationResolver) Noop(ctx context.Context) (*bool, error) {
 	return &result, nil
 }
 
+// FetchSource is the resolver for the fetchSource field.
+func (r *mutationResolver) FetchSource(ctx context.Context, sourceID string) (*graphql1.History, error) {
+	// Load sources configuration
+	cfg, err := config.LoadConfig(r.sourcesConfigPath)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to load sources config")
+	}
+
+	// Convert config to model.Source map
+	sourcesMap := make(map[string]model.Source)
+
+	// Add RSS sources
+	for id, src := range cfg.RSS {
+		sourcesMap[id] = model.Source{
+			Type:    model.SourceTypeRSS,
+			URL:     src.URL,
+			Tags:    ensureStringSlice(src.Tags.Strings()),
+			Enabled: !src.Disabled,
+			RSSConfig: &model.RSSConfig{
+				MaxArticles: src.MaxArticles,
+			},
+		}
+	}
+
+	// Add Feed sources
+	for id, src := range cfg.Feed {
+		sourcesMap[id] = model.Source{
+			Type:    model.SourceTypeFeed,
+			URL:     src.GetURL(),
+			Tags:    ensureStringSlice(src.Tags.Strings()),
+			Enabled: !src.Disabled,
+			FeedConfig: &model.FeedConfig{
+				Schema:   string(src.Schema),
+				MaxItems: src.MaxItems,
+			},
+		}
+	}
+
+	// Execute fetch for the specified source
+	history, err := r.fetchUseCase.FetchSourceByID(ctx, sourcesMap, sourceID)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to fetch source", goerr.V("source_id", sourceID))
+	}
+
+	return toGraphQLHistory(history), nil
+}
+
 // Health is the resolver for the health field.
 func (r *queryResolver) Health(ctx context.Context) (string, error) {
 	return "OK", nil
@@ -68,8 +115,8 @@ func (r *queryResolver) GetIoC(ctx context.Context, id string) (*graphql1.IoC, e
 
 // ListSources is the resolver for the listSources field.
 func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, error) {
-	// Load sources configuration
-	sources, err := config.LoadSources(r.sourcesConfigPath)
+	// Load sources configuration using LoadConfig
+	cfg, err := config.LoadConfig(r.sourcesConfigPath)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to load sources config")
 	}
@@ -83,15 +130,31 @@ func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, er
 		gqlSrc *graphql1.Source
 		thunk  func() (*model.SourceState, error)
 	}
-	sourceThunks := make([]sourceWithThunk, 0, len(sources.Sources))
+	sourceThunks := make([]sourceWithThunk, 0, len(cfg.RSS)+len(cfg.Feed))
 
-	for id, src := range sources.Sources {
+	// Add RSS sources
+	for id, src := range cfg.RSS {
 		gqlSrc := &graphql1.Source{
 			ID:      id,
-			Type:    string(src.Type),
+			Type:    "rss",
 			URL:     src.URL,
-			Tags:    src.Tags,
-			Enabled: src.Enabled,
+			Tags:    ensureStringSlice(src.Tags.Strings()),
+			Enabled: !src.Disabled,
+		}
+
+		// Queue data loader request (doesn't execute yet)
+		thunk := loaders.SourceStateLoader.Load(ctx, id)
+		sourceThunks = append(sourceThunks, sourceWithThunk{gqlSrc: gqlSrc, thunk: thunk})
+	}
+
+	// Add Feed sources
+	for id, src := range cfg.Feed {
+		gqlSrc := &graphql1.Source{
+			ID:      id,
+			Type:    "feed",
+			URL:     src.GetURL(),
+			Tags:    ensureStringSlice(src.Tags.Strings()),
+			Enabled: !src.Disabled,
 		}
 
 		// Queue data loader request (doesn't execute yet)
@@ -114,6 +177,51 @@ func (r *queryResolver) ListSources(ctx context.Context) ([]*graphql1.Source, er
 	}
 
 	return result, nil
+}
+
+// GetSource is the resolver for the getSource field.
+func (r *queryResolver) GetSource(ctx context.Context, id string) (*graphql1.Source, error) {
+	// Load sources configuration
+	cfg, err := config.LoadConfig(r.sourcesConfigPath)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to load sources config")
+	}
+
+	var gqlSrc *graphql1.Source
+
+	// Check in RSS sources
+	if rssSrc, found := cfg.RSS[id]; found {
+		gqlSrc = &graphql1.Source{
+			ID:      id,
+			Type:    "rss",
+			URL:     rssSrc.URL,
+			Tags:    ensureStringSlice(rssSrc.Tags.Strings()),
+			Enabled: !rssSrc.Disabled,
+		}
+	} else if feedSrc, found := cfg.Feed[id]; found {
+		// Check in Feed sources
+		gqlSrc = &graphql1.Source{
+			ID:      id,
+			Type:    "feed",
+			URL:     feedSrc.GetURL(),
+			Tags:    ensureStringSlice(feedSrc.Tags.Strings()),
+			Enabled: !feedSrc.Disabled,
+		}
+	} else {
+		return nil, goerr.New("source not found", goerr.V("id", id))
+	}
+
+	// Get source state from repository
+	state, err := r.repo.GetState(ctx, id)
+	if err != nil && !errors.Is(err, interfaces.ErrSourceStateNotFound) {
+		return nil, goerr.Wrap(err, "failed to get source state", goerr.V("id", id))
+	}
+
+	if state != nil {
+		gqlSrc.State = toGraphQLSourceState(state)
+	}
+
+	return gqlSrc, nil
 }
 
 // ListHistories is the resolver for the listHistories field.
