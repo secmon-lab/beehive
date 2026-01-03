@@ -213,7 +213,7 @@ func convertConfigToSourcesMap(cfg *config.Config) map[string]model.Source {
 }
 
 // printFetchResults prints the fetch results to stdout
-func printFetchResults(stats []*usecase.FetchStats) {
+func printFetchResults(histories []*model.History) {
 	fmt.Println("\n=== Fetch Results ===")
 	fmt.Println()
 
@@ -224,27 +224,27 @@ func printFetchResults(stats []*usecase.FetchStats) {
 	totalUnchanged := 0
 	totalErrors := 0
 
-	for _, s := range stats {
-		fmt.Printf("Source: %s (%s)\n", s.SourceID, s.SourceType)
-		fmt.Printf("  Items Fetched:   %d\n", s.ItemsFetched)
-		fmt.Printf("  IoCs Extracted:  %d\n", s.IoCsExtracted)
-		fmt.Printf("  IoCs Created:    %d\n", s.IoCsCreated)
-		fmt.Printf("  IoCs Updated:    %d\n", s.IoCsUpdated)
-		fmt.Printf("  IoCs Unchanged:  %d\n", s.IoCsUnchanged)
-		fmt.Printf("  Errors:          %d\n", s.ErrorCount)
-		fmt.Printf("  Processing Time: %v\n", s.ProcessingTime)
+	for _, h := range histories {
+		fmt.Printf("Source: %s (%s)\n", h.SourceID, h.SourceType)
+		fmt.Printf("  Items Fetched:   %d\n", h.ItemsFetched)
+		fmt.Printf("  IoCs Extracted:  %d\n", h.IoCsExtracted)
+		fmt.Printf("  IoCs Created:    %d\n", h.IoCsCreated)
+		fmt.Printf("  IoCs Updated:    %d\n", h.IoCsUpdated)
+		fmt.Printf("  IoCs Unchanged:  %d\n", h.IoCsUnchanged)
+		fmt.Printf("  Errors:          %d\n", h.ErrorCount)
+		fmt.Printf("  Processing Time: %v\n", h.ProcessingTime)
 		fmt.Println()
 
-		totalItems += s.ItemsFetched
-		totalExtracted += s.IoCsExtracted
-		totalCreated += s.IoCsCreated
-		totalUpdated += s.IoCsUpdated
-		totalUnchanged += s.IoCsUnchanged
-		totalErrors += s.ErrorCount
+		totalItems += h.ItemsFetched
+		totalExtracted += h.IoCsExtracted
+		totalCreated += h.IoCsCreated
+		totalUpdated += h.IoCsUpdated
+		totalUnchanged += h.IoCsUnchanged
+		totalErrors += h.ErrorCount
 	}
 
 	fmt.Println("=== Summary ===")
-	fmt.Printf("Total Sources Processed: %d\n", len(stats))
+	fmt.Printf("Total Sources Processed: %d\n", len(histories))
 	fmt.Printf("Total Items Fetched:     %d\n", totalItems)
 	fmt.Printf("Total IoCs Extracted:    %d\n", totalExtracted)
 	fmt.Printf("Total IoCs Created:      %d\n", totalCreated)

@@ -64,11 +64,11 @@ func TestFetchUseCase_FetchAllSources(t *testing.T) {
 		gt.NoError(t, err)
 		// Should have exactly 1 stat (for source1 only, even though it will fail with HTTP error)
 		gt.A(t, stats).Length(1).Describe("should process only source1 with vendor tag")
-		gt.A(t, stats).At(0, func(t testing.TB, stat *usecase.FetchStats) {
-			gt.S(t, stat.SourceID).Equal("source1").Describe("processed source should be source1")
-			gt.S(t, stat.SourceType).Equal(string(model.SourceTypeFeed)).Describe("source type should be feed")
+		gt.A(t, stats).At(0, func(t testing.TB, history *model.History) {
+			gt.S(t, history.SourceID).Equal("source1").Describe("processed source should be source1")
+			gt.V(t, history.SourceType).Equal(model.SourceTypeFeed).Describe("source type should be feed")
 			// The source will error because it's a fake URL, so we expect errors
-			gt.V(t, stat.ErrorCount).NotEqual(0).Describe("should have errors from fake URL")
+			gt.V(t, history.ErrorCount).NotEqual(0).Describe("should have errors from fake URL")
 		})
 	})
 
@@ -231,11 +231,11 @@ func TestFetchUseCase_ErrorHandling(t *testing.T) {
 		stats, err := uc.FetchAllSources(ctx, sources, nil)
 		gt.NoError(t, err) // FetchAllSources should not error even when sources fail
 		gt.A(t, stats).Length(1).Describe("should have 1 stat entry for the failed source")
-		gt.A(t, stats).At(0, func(t testing.TB, stat *usecase.FetchStats) {
-			gt.S(t, stat.SourceID).Equal("bad-source").Describe("stat source ID should be bad-source")
-			gt.N(t, stat.ErrorCount).Greater(0).Describe("should have at least 1 error")
-			gt.N(t, stat.ItemsFetched).Equal(0).Describe("should have 0 items fetched")
-			gt.N(t, stat.IoCsExtracted).Equal(0).Describe("should have 0 IoCs extracted")
+		gt.A(t, stats).At(0, func(t testing.TB, history *model.History) {
+			gt.S(t, history.SourceID).Equal("bad-source").Describe("stat source ID should be bad-source")
+			gt.N(t, history.ErrorCount).Greater(0).Describe("should have at least 1 error")
+			gt.N(t, history.ItemsFetched).Equal(0).Describe("should have 0 items fetched")
+			gt.N(t, history.IoCsExtracted).Equal(0).Describe("should have 0 IoCs extracted")
 		})
 	})
 
@@ -255,9 +255,9 @@ func TestFetchUseCase_ErrorHandling(t *testing.T) {
 		stats, err := uc.FetchAllSources(ctx, sources, nil)
 		gt.NoError(t, err)
 		gt.A(t, stats).Length(1).Describe("should have 1 stat entry")
-		gt.A(t, stats).At(0, func(t testing.TB, stat *usecase.FetchStats) {
-			gt.S(t, stat.SourceID).Equal("bad-feed").Describe("stat source ID should be bad-feed")
-			gt.N(t, stat.ErrorCount).Greater(0).Describe("should have at least 1 error from missing config")
+		gt.A(t, stats).At(0, func(t testing.TB, history *model.History) {
+			gt.S(t, history.SourceID).Equal("bad-feed").Describe("stat source ID should be bad-feed")
+			gt.N(t, history.ErrorCount).Greater(0).Describe("should have at least 1 error from missing config")
 		})
 	})
 }
