@@ -588,8 +588,22 @@ func (f *Firestore) ListHistoriesBySource(ctx context.Context, sourceID string, 
 		histories = append(histories, &h)
 	}
 
-	// Return 0 as total since we don't need it and aggregation query is expensive
-	return histories, 0, nil
+	// Get total count using aggregation query
+	countQuery := historyCollection.NewAggregationQuery().WithCount("total")
+	countResult, err := countQuery.Get(ctx)
+	if err != nil {
+		return nil, 0, goerr.Wrap(err, "failed to get total count",
+			goerr.V("source_id", sourceID))
+	}
+
+	totalCount, ok := countResult["total"]
+	if !ok {
+		return nil, 0, goerr.New("total count not found in aggregation result")
+	}
+
+	total := int(totalCount.(*firestorepb.Value).GetIntegerValue())
+
+	return histories, total, nil
 }
 
 // GetHistory retrieves a specific history record
