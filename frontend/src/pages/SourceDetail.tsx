@@ -70,9 +70,18 @@ interface FetchSourceData {
   fetchSource: History
 }
 
+// CSS class mappings for status badges
+const statusBadgeClasses: Record<string, string> = {
+  success: styles.badgeSuccess,
+  error: styles.badgeError,
+  running: styles.badgeRunning,
+  default: styles.badgeDefault,
+}
+
 function SourceDetail() {
   const { id } = useParams<{ id: string }>()
   const [pollingHistoryId, setPollingHistoryId] = useState<string | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const { loading: sourceLoading, error: sourceError, data: sourceData } = useQuery<GetSourceData>(
     GET_SOURCE,
@@ -96,6 +105,7 @@ function SourceDetail() {
     FETCH_SOURCE,
     {
       onCompleted: (data) => {
+        setFetchError(null)
         const history = data.fetchSource
         // Start polling if status is not completed
         if (history.status !== 'success' && history.status !== 'error') {
@@ -106,7 +116,7 @@ function SourceDetail() {
         }
       },
       onError: (error) => {
-        console.error('Fetch error:', error)
+        setFetchError(error.message)
       },
     }
   )
@@ -199,19 +209,6 @@ function SourceDetail() {
   }
 
   const histories = historiesData?.listHistories.items || []
-
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'success':
-        return styles.badgeSuccess
-      case 'error':
-        return styles.badgeError
-      case 'running':
-        return styles.badgeRunning
-      default:
-        return styles.badgeDefault
-    }
-  }
 
   return (
     <div className={styles.container}>
@@ -330,6 +327,9 @@ function SourceDetail() {
             {pollingHistoryId && (
               <span className={styles.fetchingMessage}>Fetching...</span>
             )}
+            {fetchError && (
+              <span className={styles.errorMessage}>{fetchError}</span>
+            )}
             <button
               onClick={handleFetch}
               disabled={fetchLoading || !!pollingHistoryId}
@@ -360,7 +360,11 @@ function SourceDetail() {
               {histories.map((history) => (
                 <tr key={history.id}>
                   <td>
-                    <span className={`${styles.badge} ${getStatusBadgeClass(history.status)}`}>
+                    <span
+                      className={`${styles.badge} ${
+                        statusBadgeClasses[history.status] || statusBadgeClasses.default
+                      }`}
+                    >
                       {history.status}
                     </span>
                   </td>

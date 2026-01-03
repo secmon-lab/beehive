@@ -140,6 +140,12 @@
   font-weight: 500;
 }
 
+.errorMessage {
+  color: #C62828;
+  font-size: 14px;
+  font-weight: 500;
+}
+
 .fetchButton {
   background-color: #FDB714;
   color: #FFFFFF;

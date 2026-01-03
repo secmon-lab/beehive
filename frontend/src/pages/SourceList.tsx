@@ -36,6 +36,19 @@ interface ListSourcesData {
 type SortField = 'id' | 'type' | 'enabled' | 'lastFetchedAt' | 'lastStatus'
 type SortOrder = 'asc' | 'desc'
 
+// CSS class mappings for type and status badges
+const typeChipClasses: Record<string, string> = {
+  rss: styles.typeRss,
+  feed: styles.typeFeed,
+}
+
+const statusBadgeClasses: Record<string, string> = {
+  success: styles.badgeSuccess,
+  error: styles.badgeError,
+  running: styles.badgeRunning,
+  partial: styles.badgePartial,
+}
+
 function SourceList() {
   const navigate = useNavigate()
   const [sortField, setSortField] = useState<SortField>('id')
@@ -172,7 +185,7 @@ function SourceList() {
                   <td>
                     <span
                       className={`${styles.typeChip} ${
-                        source.type === 'rss' ? styles.typeRss : styles.typeFeed
+                        typeChipClasses[source.type] || ''
                       }`}
                     >
                       {source.type}
@@ -234,11 +247,7 @@ function SourceList() {
                     {source.state?.lastStatus ? (
                       <span
                         className={`${styles.badge} ${
-                          source.state.lastStatus === 'success'
-                            ? styles.badgeSuccess
-                            : source.state.lastStatus === 'error'
-                            ? styles.badgeError
-                            : styles.badgePartial
+                          statusBadgeClasses[source.state.lastStatus] || ''
                         }`}
                       >
                         {source.state.lastStatus}
