@@ -8,7 +8,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/m-mizutani/clog v0.2.1
 	github.com/m-mizutani/goerr/v2 v2.0.1
-	github.com/m-mizutani/gollem v0.24.4-0.20260510002946-5511f9a2d66f
+	github.com/m-mizutani/gollem v0.24.4
 	github.com/m-mizutani/gt v0.2.1
 	github.com/mmcdole/gofeed v1.3.0
 	github.com/oklog/ulid/v2 v2.1.1

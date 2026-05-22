@@ -140,9 +140,43 @@ func TestExtract_EmptyBodyReturnsEmpty(t *testing.T) {
 	gt.Equal(t, got.BodyText, "")
 }
 
+func TestExtract_TableCellsSeparated(t *testing.T) {
+	in := `<html><body><table>
+<tr><th>Name</th><th>Age</th></tr>
+<tr><td>alice</td><td>30</td></tr>
+</table></body></html>`
+	got, err := htmltext.Extract(strings.NewReader(in), nil)
+	gt.NoError(t, err)
+	// Adjacent table cells must not collapse into "NameAge" or
+	// "alice30" — separators are required for IoCs presented in tables.
+	for _, banned := range []string{"NameAge", "alice30"} {
+		if strings.Contains(got.BodyText, banned) {
+			t.Fatalf("BodyText should not contain %q, got: %q", banned, got.BodyText)
+		}
+	}
+	for _, want := range []string{"Name", "Age", "alice", "30"} {
+		if !strings.Contains(got.BodyText, want) {
+			t.Fatalf("BodyText should contain %q, got: %q", want, got.BodyText)
+		}
+	}
+}
+
 func TestExtract_HTMLEntities(t *testing.T) {
 	in := `<html><body><p>foo &amp; bar &lt;baz&gt;</p></body></html>`
 	got, err := htmltext.Extract(strings.NewReader(in), nil)
 	gt.NoError(t, err)
 	gt.Equal(t, got.BodyText, "foo & bar <baz>")
+}
+
+func TestExtract_NonBreakingSpaceCollapsed(t *testing.T) {
+	// &nbsp; is decoded to U+00A0 by html.Parse; without unicode-aware
+	// whitespace handling it would not be collapsed and would leak into
+	// the output as a literal NBSP.
+	in := `<html><body><p>foo&nbsp;&nbsp;bar</p></body></html>`
+	got, err := htmltext.Extract(strings.NewReader(in), nil)
+	gt.NoError(t, err)
+	if strings.ContainsRune(got.BodyText, ' ') {
+		t.Fatalf("BodyText should not contain raw NBSP, got: %q", got.BodyText)
+	}
+	gt.Equal(t, got.BodyText, "foo bar")
 }

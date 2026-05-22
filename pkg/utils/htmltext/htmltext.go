@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"unicode"
 
 	"github.com/m-mizutani/goerr/v2"
 	"golang.org/x/net/html"
@@ -81,6 +82,8 @@ var blockTags = map[atom.Atom]bool{
 	atom.H5:         true,
 	atom.H6:         true,
 	atom.Tr:         true,
+	atom.Td:         true,
+	atom.Th:         true,
 	atom.Pre:        true,
 	atom.Blockquote: true,
 	atom.Section:    true,
@@ -222,10 +225,12 @@ func normalizeWhitespace(s string) string {
 	}
 
 	for _, r := range s {
-		switch r {
-		case '\n', '\r':
+		switch {
+		case r == '\n' || r == '\r':
 			pendingNewline = true
-		case ' ', '\t', '\f', '\v':
+		case unicode.IsSpace(r):
+			// Covers ASCII space/tab/FF/VT plus Unicode whitespace
+			// such as U+00A0 (NBSP, decoded from &nbsp;).
 			pendingSpace = true
 		default:
 			flushSeparators()
