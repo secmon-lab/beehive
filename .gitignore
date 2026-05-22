@@ -30,3 +30,30 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Build outputs
+bin/
+dist/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/*
+# Keep the placeholder so `//go:embed all:dist` compiles before `pnpm build`.
+!frontend/dist/.gitkeep
+# Playwright run artefacts (HTML report, trace zips, screenshots, etc.)
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
+# tsc -b incremental build cache
+frontend/*.tsbuildinfo
+
+# Generated OpenAPI / OpenAPI-typescript outputs
+pkg/controller/http/generated.go
+frontend/src/generated/
+
+# Operator-owned beehive config (kept out of the OSS repo; see examples/config.toml).
+/config.toml
+
+# Local runtime artifacts
+tmp/
+

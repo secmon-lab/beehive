@@ -1,0 +1,71 @@
+version: "3"
+
+vars:
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+
+tasks:
+  default:
+    cmds:
+      - task: help
+
+  help:
+    desc: List tasks
+    cmds:
+      - task --list
+
+  gen:openapi:
+    desc: Generate server stubs (Go) and types (TS) from openapi.yaml
+    cmds:
+      - go tool oapi-codegen --config oapi-codegen.yaml openapi.yaml
+      - cd frontend && pnpm run gen:api
+
+  gen:
+    desc: Run all code generators
+    cmds:
+      - task: gen:openapi
+
+  build:frontend:
+    desc: Build the React frontend into frontend/dist
+    cmds:
+      - cd frontend && pnpm install --frozen-lockfile
+      - cd frontend && pnpm run build
+
+  build:
+    desc: Build the beehive binary (frontend embedded)
+    deps: [gen:openapi, build:frontend]
+    cmds:
+      - go build -trimpath -ldflags="-s -w -X main.version={{.VERSION}}" -o bin/beehive .
+
+  test:go:
+    desc: Run Go tests
+    cmds:
+      - go test ./...
+
+  test:frontend:
+    desc: Run frontend unit tests and lint
+    cmds:
+      - cd frontend && pnpm test
+      - cd frontend && pnpm lint
+
+  test:
+    desc: All tests
+    cmds:
+      - task: test:go
+      - task: test:frontend
+
+  lint:go:
+    desc: Run Go linters
+    cmds:
+      - go vet ./...
+      - golangci-lint run ./...
+
+  validate:
+    desc: Validate beehive config (TOML / providers / env / LLM)
+    cmds:
+      - go run . validate
+
+  run:
+    desc: Run beehive serve locally
+    cmds:
+      - go run . serve

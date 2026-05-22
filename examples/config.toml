@@ -1,0 +1,56 @@
+# beehive — OSS sample source definitions.
+#
+# Copy this file to ./config.toml (or pass --config / set BEEHIVE_CONFIG),
+# adjust ids / intervals / disabled flags, and run `beehive validate` before
+# deploying.
+#
+# Each source picks a built-in provider via `type`. The provider owns the URL /
+# parsing / IoC type judgement; beehive does not expose JSONPath/selector knobs.
+# A source is enabled by default; set `disabled = true` to pause it.
+
+# ---- blog 系（type = "rss" は RSS / Atom / JSON Feed を gofeed が自動判別）----
+
+[[source]]
+id   = "trendmicro-research"
+name = "Trend Micro Research"
+type = "rss"
+url  = "https://www.trendmicro.com/en_us/research.rss"
+interval = "1h"
+
+[[source]]
+id   = "krebsonsecurity"
+name = "Krebs on Security"
+type = "rss"   # Atom フィードでも OK
+url  = "https://krebsonsecurity.com/feed/atom/"
+interval = "2h"
+
+# ---- feed 系（サイトごとに専用 provider が実装される）----
+
+[[source]]
+id   = "abuseipdb-blacklist"
+name = "AbuseIPDB Blacklist"
+type = "abuseipdb_blacklist"
+interval = "6h"
+# requires env: BEEHIVE_PROVIDER_ABUSEIPDB_API_KEY
+
+[[source]]
+id   = "feodotracker"
+name = "Feodo Tracker IP Blocklist"
+type = "feodotracker_ipblocklist"
+interval = "30m"
+
+[[source]]
+id   = "urlhaus-recent"
+name = "URLhaus (recent)"
+type = "urlhaus_recent"
+interval = "15m"
+
+# ---- 一時停止例（明示的に止めたいときだけ書く）----
+
+[[source]]
+id   = "legacy-feed"
+name = "Legacy Feed (paused)"
+type = "rss"
+url  = "https://example.com/feed.xml"
+interval = "1h"
+disabled = true
