@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	readability "github.com/go-shiori/go-readability"
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/mmcdole/gofeed"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
@@ -18,6 +17,7 @@ import (
 	"github.com/secmon-lab/beehive/pkg/domain/types"
 	"github.com/secmon-lab/beehive/pkg/service/fetcher"
 	"github.com/secmon-lab/beehive/pkg/utils/errutil"
+	"github.com/secmon-lab/beehive/pkg/utils/htmltext"
 )
 
 // RSSTypeID is the type id used in TOML. RSS / Atom / JSON Feed all
@@ -43,7 +43,7 @@ func (p *RSSProvider) Kind() types.SourceKind { return types.KindBlog }
 //  1. GET the feed URL, hand the bytes to gofeed (autodetects RSS /
 //     Atom / JSON Feed).
 //  2. For each entry, GET the entry URL.
-//  3. Run the HTML through go-readability to strip script / style /
+//  3. Run the HTML through htmltext.Extract to strip script / style /
 //     nav / footer / ad boilerplate.
 //  4. Return the resulting `FetchedArticle` slice.
 //
@@ -94,7 +94,7 @@ func (p *RSSProvider) fetchArticle(ctx context.Context, item *gofeed.Item) (*int
 	if err != nil {
 		return nil, goerr.Wrap(err, "parse article url", goerr.V("url", item.Link))
 	}
-	article, err := readability.FromReader(bytes.NewReader(body), parsedURL)
+	article, err := htmltext.Extract(bytes.NewReader(body), parsedURL)
 	if err != nil {
 		// Fallback: use the raw body as best-effort text.
 		return &interfaces.FetchedArticle{
@@ -109,7 +109,7 @@ func (p *RSSProvider) fetchArticle(ctx context.Context, item *gofeed.Item) (*int
 		URL:         item.Link,
 		Title:       firstNonEmpty(article.Title, item.Title),
 		PublishedAt: itemPublished(item),
-		BodyText:    strings.TrimSpace(article.TextContent),
+		BodyText:    article.BodyText,
 		Summary:     firstNonEmpty(article.Excerpt, item.Description),
 	}, nil
 }
