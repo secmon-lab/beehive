@@ -39,12 +39,29 @@ Notable directories:
 - `pkg/usecase/` — fetch / extract / ioc_lookup / source_query / bootstrap.
 - `pkg/controller/http/` — chi router (will host oapi-codegen output later).
 - `pkg/cli/` — `serve` / `fetch` / `validate` subcommands.
-- `pkg/utils/{logging,errutil,safe,async,id}` — cross-cutting helpers.
+- `pkg/utils/{logging,errutil,safe,async,id,htmltext}` — cross-cutting helpers.
 - `frontend/` — Vite + React 19 + TypeScript (3 pages).
 - `examples/sources/example.toml` — OSS-bundled sample.
 - `config/sources/*.toml` — operator-owned TOML. The OSS repo only ships `.gitkeep`.
 
 ## 2. Dependencies
+
+### Adding a dependency is the last resort
+
+A new third-party package is the most expensive line of code you can add: it expands the attack surface, the supply-chain blast radius, and the maintenance burden, and every transitive dependency it drags in counts the same. Before reaching for one, **try standard library, then existing direct dependencies, then a small in-tree implementation** in that order.
+
+Hard rules:
+
+1. **Default is "no".** If you're about to run `go get` / `pnpm add`, stop and write down (in the PR description) why a self-implementation in the same PR would not be smaller and safer. "It's just a small util" is exactly the case where you should NOT add a package.
+2. **Pseudo-versions are banned.** `v0.0.0-YYYYMMDD-HHMMSS-<hash>` means upstream has not cut a real release. Treat these as proof the library is not ready and find another path.
+3. **Stale or single-maintainer libraries are banned.** No commits in the last 12 months, or a `CODEOWNERS` of one person with no community, disqualifies a candidate unless we are prepared to fork it on day one.
+4. **Transitive footprint is a first-class concern.** A "small wrapper" that adds five indirect dependencies is not small. Run `go mod why` / `pnpm why` on candidates before merging and include the diff in the PR description.
+5. **No duplicate roles.** We already have one HTTP router (chi), one logger (clog), one error library (goerr), one test helper (gt), one CLI framework (urfave/cli), one TOML parser, one feed parser. Adding a second of any of these requires removing the first in the same PR.
+6. **Prefer the in-tree util pattern.** Single-purpose HTML/text/regex helpers go under `pkg/utils/<name>` (see `pkg/utils/htmltext` for the reference shape). 50-200 lines of focused, tested Go is almost always better than a dependency.
+
+When the rules conflict with a real need, write the reason in the PR description and tag it explicitly so the next reviewer can challenge it.
+
+### Current dependencies
 
 Go:
 
@@ -54,7 +71,7 @@ Go:
 - OpenAPI gen: `github.com/oapi-codegen/oapi-codegen/v2`
 - TOML: `github.com/pelletier/go-toml/v2`
 - Feeds: `github.com/mmcdole/gofeed`
-- Article body extraction: `github.com/go-shiori/go-readability`
+- HTML parsing: `golang.org/x/net/html` (article body text is extracted in-tree via `pkg/utils/htmltext`)
 - LLM: `github.com/m-mizutani/gollem`
 - Logger: `github.com/m-mizutani/clog`
 - Errors: `github.com/m-mizutani/goerr/v2`
