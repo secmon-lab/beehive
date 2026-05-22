@@ -1,0 +1,352 @@
+openapi: 3.0.3
+info:
+  title: beehive
+  description: |
+    IoC extractor for security blogs and feeds. Pull-driven by external schedulers
+    (Cloud Scheduler etc.) via POST /api/v1/fetch.
+  version: 0.1.0
+  license:
+    name: Apache-2.0
+
+servers:
+  - url: /
+
+paths:
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      summary: Liveness probe
+      tags: [meta]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/sources:
+    get:
+      operationId: listSources
+      summary: List sources merged with their dynamic state
+      tags: [sources]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceListResponse"
+
+  /api/v1/sources/{id}:
+    get:
+      operationId: getSource
+      summary: Fetch one source (with state)
+      tags: [sources]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceView"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/sources/{id}/enabled_override:
+    put:
+      operationId: setSourceEnabledOverride
+      summary: Set the operator override for a source
+      tags: [sources]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OverrideRequest"
+      responses:
+        "204":
+          description: No Content
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+
+  /api/v1/sources/{id}/fetch:
+    post:
+      operationId: triggerSourceFetch
+      summary: Force-fetch one source (interval ignored)
+      tags: [sources]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunSummary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/fetch:
+    post:
+      operationId: triggerFetchAll
+      summary: Fetch every due source synchronously
+      tags: [sources]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunSummary"
+
+  /api/v1/runs:
+    get:
+      operationId: listRuns
+      summary: Recent run history (in-process, may be empty before any fetch)
+      tags: [runs]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunListResponse"
+
+  /api/v1/runs/{id}:
+    get:
+      operationId: getRun
+      summary: Run detail
+      tags: [runs]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/iocs:
+    get:
+      operationId: listRecentIoCs
+      summary: List recent IoCs (LastSeenAt desc)
+      description: |
+        Returns the most recently observed IoCs for the operator UI.
+        Bulk analytics still belong in BigQuery — this endpoint caps
+        the result count and exposes no pagination cursor.
+      tags: [iocs]
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [iocs]
+                properties:
+                  iocs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IoC"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+
+  /api/v1/iocs/lookup:
+    get:
+      operationId: lookupIoC
+      summary: Exact-match IoC lookup
+      tags: [iocs]
+      parameters:
+        - in: query
+          name: type
+          required: true
+          schema: {type: string}
+        - in: query
+          name: value
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IoC"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  responses:
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    InvalidInput:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, example: ok}
+        version: {type: string}
+
+    Problem:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string, example: not_found}
+        message: {type: string}
+        details:
+          type: object
+          additionalProperties: true
+
+    Source:
+      type: object
+      required: [id, name, kind, type, interval]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        kind: {type: string, enum: [blog, feed]}
+        type: {type: string}
+        url: {type: string}
+        interval: {type: string, description: "Go duration, e.g. 1h"}
+        disabled: {type: boolean}
+
+    SourceState:
+      type: object
+      properties:
+        sourceId: {type: string}
+        enabledOverride: {type: string, enum: [none, force_off, force_on]}
+        lastFetchedAt: {type: string, format: date-time}
+        lastStatus: {type: string}
+        lastError: {type: string}
+        lastRunId: {type: string}
+        totalIocCount: {type: integer}
+        updatedAt: {type: string, format: date-time}
+
+    SourceView:
+      type: object
+      required: [source]
+      properties:
+        source: {$ref: "#/components/schemas/Source"}
+        state: {$ref: "#/components/schemas/SourceState"}
+
+    SourceListResponse:
+      type: object
+      required: [sources]
+      properties:
+        sources:
+          type: array
+          items: {$ref: "#/components/schemas/SourceView"}
+
+    OverrideRequest:
+      type: object
+      required: [value]
+      properties:
+        value: {type: string, enum: [none, force_off, force_on]}
+
+    RunSummary:
+      type: object
+      required: [runId, total, triggered, skipped, failed]
+      properties:
+        runId: {type: string}
+        total: {type: integer}
+        triggered: {type: integer}
+        skipped: {type: integer}
+        failed: {type: integer}
+        durationMs: {type: integer, format: int64}
+        status: {type: string}
+
+    RunSource:
+      type: object
+      properties:
+        sourceId: {type: string}
+        sourceKind: {type: string}
+        status: {type: string}
+        skipReason: {type: string}
+        startedAt: {type: string, format: date-time}
+        finishedAt: {type: string, format: date-time}
+        articleCount: {type: integer}
+        newArticleCount: {type: integer}
+        iocCount: {type: integer}
+        errorMessage: {type: string}
+
+    Run:
+      type: object
+      required: [id, status]
+      properties:
+        id: {type: string}
+        trigger: {type: string}
+        status: {type: string}
+        startedAt: {type: string, format: date-time}
+        finishedAt: {type: string, format: date-time}
+        durationMs: {type: integer, format: int64}
+        total: {type: integer}
+        triggered: {type: integer}
+        skipped: {type: integer}
+        failed: {type: integer}
+        errorMessage: {type: string}
+        sources:
+          type: array
+          items: {$ref: "#/components/schemas/RunSource"}
+        sourceIds:
+          type: array
+          items: {type: string}
+
+    RunListResponse:
+      type: object
+      required: [runs]
+      properties:
+        runs:
+          type: array
+          items: {$ref: "#/components/schemas/Run"}
+
+    IoC:
+      type: object
+      required: [id, type, value]
+      properties:
+        id: {type: string}
+        type: {type: string}
+        value: {type: string}
+        raw: {type: string}
+        firstSeenAt: {type: string, format: date-time}
+        lastSeenAt: {type: string, format: date-time}
