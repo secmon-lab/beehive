@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"sync"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/gollem"
@@ -36,30 +37,23 @@ type LLMConfig struct {
 // NewLLMClient builds an interfaces.LLMClient (the narrow shape the
 // extractor consumes) from cfg.
 //
+// Construction is **shape-only**: cfg is validated synchronously but the
+// underlying provider client is created lazily on the first
+// GenerateJSON call. This matters for environments that have valid env
+// vars but no live ADC credentials (CI, validate-only invocations,
+// tests of the HTTP boot path) — they must not hard-fail at startup.
+//
 // MVP supports gemini only — additional providers can be added to the
-// switch here as the wiring layer matures. Returns a tagged
-// invalid-input error when the configuration is incomplete.
-func NewLLMClient(ctx context.Context, cfg LLMConfig) (interfaces.LLMClient, error) {
+// switch here as the wiring layer matures.
+func NewLLMClient(_ context.Context, cfg LLMConfig) (interfaces.LLMClient, error) {
 	switch cfg.Provider {
 	case "gemini":
-		projectID := cfg.Args["project_id"]
-		location := cfg.Args["location"]
-		if projectID == "" || location == "" {
+		if cfg.Args["project_id"] == "" || cfg.Args["location"] == "" {
 			return nil, goerr.New("gemini requires BEEHIVE_LLM_ARGS=project_id=...,location=...",
 				goerr.V("args", cfg.Args),
 				goerr.T(errutil.TagInvalidInput))
 		}
-		opts := []gemini.Option{}
-		if cfg.Model != "" {
-			opts = append(opts, gemini.WithModel(cfg.Model))
-		}
-		client, err := gemini.New(ctx, projectID, location, opts...)
-		if err != nil {
-			return nil, goerr.Wrap(err, "build gemini client",
-				goerr.V("project_id", projectID),
-				goerr.V("location", location))
-		}
-		return &gollemClient{inner: client}, nil
+		return &gollemClient{cfg: cfg}, nil
 
 	default:
 		return nil, goerr.New("unsupported BEEHIVE_LLM_PROVIDER (only \"gemini\" is wired)",
@@ -68,13 +62,48 @@ func NewLLMClient(ctx context.Context, cfg LLMConfig) (interfaces.LLMClient, err
 	}
 }
 
-// gollemClient adapts gollem.LLMClient to interfaces.LLMClient. Stays
-// minimal — one method, no state beyond the wrapped client.
+// gollemClient adapts gollem.LLMClient to interfaces.LLMClient with
+// lazy initialisation — the actual provider client is only built on
+// the first GenerateJSON call, behind a sync.Once. Subsequent calls
+// reuse the cached client (or its sticky init error).
 type gollemClient struct {
-	inner gollem.LLMClient
+	cfg LLMConfig
+
+	once    sync.Once
+	inner   gollem.LLMClient
+	initErr error
+}
+
+func (g *gollemClient) ensureInner(ctx context.Context) (gollem.LLMClient, error) {
+	g.once.Do(func() {
+		switch g.cfg.Provider {
+		case "gemini":
+			opts := []gemini.Option{}
+			if g.cfg.Model != "" {
+				opts = append(opts, gemini.WithModel(g.cfg.Model))
+			}
+			client, err := gemini.New(ctx, g.cfg.Args["project_id"], g.cfg.Args["location"], opts...)
+			if err != nil {
+				g.initErr = goerr.Wrap(err, "build gemini client",
+					goerr.V("project_id", g.cfg.Args["project_id"]),
+					goerr.V("location", g.cfg.Args["location"]))
+				return
+			}
+			g.inner = client
+		default:
+			g.initErr = goerr.New("unsupported BEEHIVE_LLM_PROVIDER",
+				goerr.V("provider", g.cfg.Provider),
+				goerr.T(errutil.TagInvalidInput))
+		}
+	})
+	return g.inner, g.initErr
 }
 
 func (g *gollemClient) GenerateJSON(ctx context.Context, system, prompt string, _ []byte, out any) error {
+	inner, err := g.ensureInner(ctx)
+	if err != nil {
+		return err
+	}
 	// gollem prefers a *gollem.Parameter for the response schema, which
 	// it builds via reflection from a Go value. We pass the destination
 	// pointer (or its element type) and let gollem.ToSchema derive the
@@ -86,7 +115,7 @@ func (g *gollemClient) GenerateJSON(ctx context.Context, system, prompt string, 
 		return goerr.Wrap(err, "build response schema from out type")
 	}
 
-	session, err := g.inner.NewSession(ctx,
+	session, err := inner.NewSession(ctx,
 		gollem.WithSessionSystemPrompt(system),
 		gollem.WithSessionContentType(gollem.ContentTypeJSON),
 		gollem.WithSessionResponseSchema(schema),

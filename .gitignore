@@ -44,6 +44,8 @@ frontend/dist/*
 frontend/test-results/
 frontend/playwright-report/
 frontend/.playwright/
+# tsc -b incremental build cache
+frontend/*.tsbuildinfo
 
 # Generated OpenAPI / OpenAPI-typescript outputs
 pkg/controller/http/generated.go

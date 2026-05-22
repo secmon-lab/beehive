@@ -77,12 +77,18 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 				Status:     types.RunStatusSkipped,
 				SkipReason: skipReason(src, state),
 			}
-			if err := appendRunSource(ctx, deps, run, rs, &mu); err != nil {
-				errutil.Handle(ctx, goerr.Wrap(err, "append run source (skipped)",
-					goerr.V("source_id", src.ID),
-					goerr.V("run_id", run.ID)))
+			// Skipped sources are accumulated in memory and flushed via
+			// a single UpdateRun at the end. Calling AppendRunSource
+			// per skip would be one Firestore transaction per skip —
+			// expensive and contention-heavy on the single Run doc (see
+			// CLAUDE.md §3 on write-cost discipline).
+			mu.Lock()
+			run.Sources = append(run.Sources, *rs)
+			if !containsSourceID(run.SourceIDs, src.ID) {
+				run.SourceIDs = append(run.SourceIDs, src.ID)
 			}
 			run.Skipped++
+			mu.Unlock()
 			continue
 		}
 
@@ -116,7 +122,13 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 			default:
 				run.Triggered++
 			}
-			return appendRunSource(ctx, deps, run, rs, nil)
+			// Same coalescing rule as the skip branch — keep everything
+			// in memory and persist once at the end.
+			run.Sources = append(run.Sources, *rs)
+			if !containsSourceID(run.SourceIDs, rs.SourceID) {
+				run.SourceIDs = append(run.SourceIDs, rs.SourceID)
+			}
+			return nil
 		})
 	}
 	_ = g.Wait()
@@ -131,6 +143,15 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 		}
 	}
 	return run, nil
+}
+
+func containsSourceID(ids []types.SourceID, id types.SourceID) bool {
+	for _, x := range ids {
+		if x == id {
+			return true
+		}
+	}
+	return false
 }
 
 func isDue(src *model.Source, state *model.SourceState, now time.Time) bool {
@@ -160,14 +181,3 @@ func overallStatus(run *model.Run) types.RunStatus {
 	return types.RunStatusFailed
 }
 
-func appendRunSource(ctx context.Context, deps Deps, run *model.Run, rs *model.RunSource, mu *sync.Mutex) error {
-	if mu != nil {
-		mu.Lock()
-		defer mu.Unlock()
-	}
-	if deps.Repo != nil {
-		return deps.Repo.AppendRunSource(ctx, run.ID, rs)
-	}
-	run.Sources = append(run.Sources, *rs)
-	return nil
-}

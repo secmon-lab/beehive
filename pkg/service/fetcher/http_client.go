@@ -67,11 +67,17 @@ func (c *HTTPClient) Get(ctx context.Context, url string, headers map[string]str
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, goerr.New("non-2xx response",
+		// Only treat 5xx (and 429) as retryable / "busy". 4xx is a
+		// caller / upstream mistake that retrying will not help with,
+		// so we leave it untagged.
+		opts := []goerr.Option{
 			goerr.V("url", url),
 			goerr.V("status", resp.StatusCode),
-			goerr.T(errutil.TagBusy),
-		)
+		}
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			opts = append(opts, goerr.T(errutil.TagBusy))
+		}
+		return nil, goerr.New("non-2xx response", opts...)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, defaultMaxBody+1))
 	if err != nil {
@@ -93,8 +99,14 @@ type safeDialer struct {
 	inner *net.Dialer
 }
 
+// DialContext resolves the host once, rejects the connection if ANY
+// returned address is in a forbidden range, AND then dials the first
+// allowed IP literal directly. Passing the original hostname back to
+// the inner dialer would let it re-resolve, opening a DNS rebinding
+// hole: the second lookup could return an internal address after the
+// first one validated.
 func (d *safeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	host, _, err := net.SplitHostPort(addr)
+	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +114,7 @@ func (d *safeDialer) DialContext(ctx context.Context, network, addr string) (net
 	if err != nil {
 		return nil, err
 	}
+	var allowed netip.Addr
 	for _, ip := range ips {
 		na, ok := netip.AddrFromSlice(ip.IP)
 		if !ok {
@@ -115,8 +128,18 @@ func (d *safeDialer) DialContext(ctx context.Context, network, addr string) (net
 				goerr.T(errutil.TagInvalidInput),
 			)
 		}
+		if !allowed.IsValid() {
+			allowed = na
+		}
 	}
-	return d.inner.DialContext(ctx, network, addr)
+	if !allowed.IsValid() {
+		return nil, goerr.New("no usable address resolved",
+			goerr.V("host", host),
+			goerr.T(errutil.TagInvalidInput),
+		)
+	}
+	// Dial the validated IP literal, bypassing any further name lookup.
+	return d.inner.DialContext(ctx, network, net.JoinHostPort(allowed.String(), port))
 }
 
 func isForbidden(a netip.Addr) bool {

@@ -14,7 +14,12 @@ import (
 
 // LockHeartbeatInterval is exported for tests so they can override it
 // to drive the heartbeat loop quickly.
-var LockHeartbeatInterval = 20 * time.Second
+//
+// The Firestore lock TTL is 20s (see pkg/repository/firestore.lockTTL);
+// the heartbeat MUST fire well before that to absorb scheduling jitter
+// and network latency. Using TTL/3 leaves headroom for one missed tick
+// without losing the lock.
+var LockHeartbeatInterval = 7 * time.Second
 
 // LockManager is a thin LockManager that drives the underlying
 // repository, owning the heartbeat goroutine.

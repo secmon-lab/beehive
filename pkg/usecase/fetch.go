@@ -132,7 +132,12 @@ func fetchBlog(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 	)
 	now := time.Now().UTC()
 	for i, a := range articles {
+		// ContentHash is computed over the FULL body so re-fetches can
+		// detect real changes, but the persisted BodyText is truncated
+		// to stay within the Firestore 1 MiB document limit (see
+		// model.TruncateBodyText).
 		hash := hashBody(a.BodyText)
+		bodyForStore := model.TruncateBodyText(a.BodyText)
 		existing, gErr := deps.Repo.GetArticleByURL(ctx, a.URL)
 		if gErr != nil && !errutil.IsNotFound(gErr) {
 			return gErr
@@ -145,7 +150,7 @@ func fetchBlog(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 			PublishedAt:      a.PublishedAt,
 			FetchedAt:        now,
 			ContentHash:      hash,
-			BodyText:         a.BodyText,
+			BodyText:         bodyForStore,
 			Summary:          a.Summary,
 			ExtractionStatus: types.ExtractionPending,
 			RunID:            runID,
