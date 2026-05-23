@@ -1,9 +1,6 @@
 # beehive
 
-[![test](https://github.com/secmon-lab/beehive/actions/workflows/test.yml/badge.svg)](https://github.com/secmon-lab/beehive/actions/workflows/test.yml)
-[![lint](https://github.com/secmon-lab/beehive/actions/workflows/lint.yml/badge.svg)](https://github.com/secmon-lab/beehive/actions/workflows/lint.yml)
-[![gosec](https://github.com/secmon-lab/beehive/actions/workflows/gosec.yml/badge.svg)](https://github.com/secmon-lab/beehive/actions/workflows/gosec.yml)
-[![trivy](https://github.com/secmon-lab/beehive/actions/workflows/trivy.yml/badge.svg)](https://github.com/secmon-lab/beehive/actions/workflows/trivy.yml)
+[![test](https://github.com/secmon-lab/beehive/actions/workflows/test.yml/badge.svg)](https://github.com/secmon-lab/beehive/actions/workflows/test.yml) [![lint](https://github.com/secmon-lab/beehive/actions/workflows/lint.yml/badge.svg)](https://github.com/secmon-lab/beehive/actions/workflows/lint.yml) [![gosec](https://github.com/secmon-lab/beehive/actions/workflows/gosec.yml/badge.svg)](https://github.com/secmon-lab/beehive/actions/workflows/gosec.yml) [![trivy](https://github.com/secmon-lab/beehive/actions/workflows/trivy.yml/badge.svg)](https://github.com/secmon-lab/beehive/actions/workflows/trivy.yml) [![e2e](https://github.com/secmon-lab/beehive/actions/workflows/e2e.yml/badge.svg)](https://github.com/secmon-lab/beehive/actions/workflows/e2e.yml)
 
 Pull-driven crawler that extracts IoCs (Indicators of Compromise) from security blogs and IoC feeds. Designed for Cloud Run zero scale: an external scheduler (e.g. Cloud Scheduler) hits `POST /api/v1/fetch` and beehive runs all due sources synchronously.
 
