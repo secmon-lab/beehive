@@ -29,19 +29,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Set up reviewdog
+        uses: reviewdog/action-setup@v1
         with:
-          go-version-file: "go.mod"
-          cache: true
-          cache-dependency-path: go.sum
+          reviewdog_version: latest
 
-      - name: Run gosec via reviewdog
-        uses: reviewdog/action-gosec@v1
+      - name: Run gosec (SARIF output)
+        uses: securego/gosec@v2.26.1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
-          level: warning
-          filter_mode: nofilter
-          fail_level: any
-          gosec_flags: "-exclude-generated ./..."
+          args: '-no-fail -fmt=sarif -exclude-generated -out=gosec.sarif ./...'
+
+      - name: Post gosec findings via reviewdog
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPORTER: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
+        run: |
+          reviewdog \
+            -f=sarif \
+            -name=gosec \
+            -reporter="$REPORTER" \
+            -level=warning \
+            -filter-mode=nofilter \
+            -fail-level=any \
+            < gosec.sarif
