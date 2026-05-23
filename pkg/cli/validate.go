@@ -56,23 +56,23 @@ func runValidate(_ context.Context, cfg *Configs) error {
 	}
 
 	if len(problems) == 0 && len(backendProblems) == 0 {
-		fmt.Fprintf(os.Stdout, "%s %d sources in %s\n",
+		_, _ = fmt.Fprintf(os.Stdout, "%s %d sources in %s\n",
 			green("✓"), len(cat.Sources), cfg.Sources.Path)
-		fmt.Fprintf(os.Stdout, "%s all providers registered\n", green("✓"))
+		_, _ = fmt.Fprintf(os.Stdout, "%s all providers registered\n", green("✓"))
 		if cfg.Repo.Backend == "firestore" {
-			fmt.Fprintf(os.Stdout, "%s firestore project_id=%s database=%s\n",
+			_, _ = fmt.Fprintf(os.Stdout, "%s firestore project_id=%s database=%s\n",
 				green("✓"), cfg.Firestore.ProjectID, cfg.Firestore.Database)
 		}
-		fmt.Fprintln(os.Stdout, green("OK"))
+		_, _ = fmt.Fprintln(os.Stdout, green("OK"))
 		return nil
 	}
 
 	for _, p := range problems {
-		fmt.Fprintf(os.Stderr, "%s %s\n", red("✗"), p.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "%s %s\n", red("✗"), p.Error())
 	}
 	for _, p := range backendProblems {
-		fmt.Fprintf(os.Stderr, "%s %s\n", red("✗"), p)
+		_, _ = fmt.Fprintf(os.Stderr, "%s %s\n", red("✗"), p)
 	}
-	fmt.Fprintf(os.Stderr, "%s %d problem(s) found\n", yellow(""), len(problems)+len(backendProblems))
+	_, _ = fmt.Fprintf(os.Stderr, "%s %d problem(s) found\n", yellow(""), len(problems)+len(backendProblems))
 	return fmt.Errorf("validation failed")
 }

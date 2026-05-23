@@ -1,0 +1,54 @@
+name: gosec
+
+on:
+  push:
+    paths:
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'main.go'
+      - '.github/workflows/gosec.yml'
+  pull_request:
+    paths:
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'main.go'
+      - '.github/workflows/gosec.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  gosec:
+    name: gosec (reviewdog)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up reviewdog
+        uses: reviewdog/action-setup@d8a7baabd7f3e8544ee4dbde3ee41d0011c3a93f # v1
+        with:
+          reviewdog_version: latest
+
+      - name: Run gosec (SARIF output)
+        uses: securego/gosec@4a3bd8af174872c778439083ded7adbf3747e770 # v2.26.1
+        with:
+          args: '-no-fail -fmt=sarif -exclude-generated -out=gosec.sarif ./...'
+
+      - name: Post gosec findings via reviewdog
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPORTER: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
+        run: |
+          reviewdog \
+            -f=sarif \
+            -name=gosec \
+            -reporter="$REPORTER" \
+            -level=warning \
+            -filter-mode=nofilter \
+            -fail-level=any \
+            < gosec.sarif

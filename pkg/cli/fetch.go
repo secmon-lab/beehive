@@ -80,10 +80,10 @@ func runFetch(ctx context.Context, cfg *Configs, target types.SourceID) error {
 	green := color.New(color.FgGreen, color.Bold).SprintFunc()
 	red := color.New(color.FgRed, color.Bold).SprintFunc()
 	if run.Failed > 0 {
-		fmt.Fprintf(os.Stderr, "%s run %s — total=%d triggered=%d skipped=%d failed=%d\n",
+		_, _ = fmt.Fprintf(os.Stderr, "%s run %s — total=%d triggered=%d skipped=%d failed=%d\n",
 			red("✗"), run.ID, run.Total, run.Triggered, run.Skipped, run.Failed)
 	} else {
-		fmt.Fprintf(os.Stdout, "%s run %s — total=%d triggered=%d skipped=%d\n",
+		_, _ = fmt.Fprintf(os.Stdout, "%s run %s — total=%d triggered=%d skipped=%d\n",
 			green("✓"), run.ID, run.Total, run.Triggered, run.Skipped)
 	}
 	body, _ := json.MarshalIndent(map[string]any{
@@ -95,7 +95,7 @@ func runFetch(ctx context.Context, cfg *Configs, target types.SourceID) error {
 		"status":     run.Status,
 		"durationMs": run.DurationMs,
 	}, "", "  ")
-	fmt.Fprintln(os.Stdout, string(body))
+	_, _ = fmt.Fprintln(os.Stdout, string(body))
 	if run.Failed > 0 {
 		return fmt.Errorf("fetch finished with %d failures", run.Failed)
 	}

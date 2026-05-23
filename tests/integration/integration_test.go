@@ -27,6 +27,7 @@ import (
 	"github.com/secmon-lab/beehive/pkg/service/fetcher"
 	"github.com/secmon-lab/beehive/pkg/service/source_catalog"
 	"github.com/secmon-lab/beehive/pkg/utils/id"
+	"github.com/secmon-lab/beehive/pkg/utils/safe"
 
 	bhhttp "github.com/secmon-lab/beehive/pkg/controller/http"
 )
@@ -57,7 +58,7 @@ func TestHealth_Integration(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/api/v1/health")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 
 	gt.Equal(t, resp.StatusCode, http.StatusOK)
 

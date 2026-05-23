@@ -8,6 +8,7 @@ import (
 
 	"github.com/m-mizutani/gt"
 	bhhttp "github.com/secmon-lab/beehive/pkg/controller/http"
+	"github.com/secmon-lab/beehive/pkg/utils/safe"
 )
 
 func TestHealthEndpoint(t *testing.T) {
@@ -17,7 +18,7 @@ func TestHealthEndpoint(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/api/v1/health")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 
 	gt.Equal(t, resp.StatusCode, http.StatusOK)
 	var body map[string]string
@@ -32,7 +33,7 @@ func TestUnknownRouteReturnsProblemJSON(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/api/v1/nope")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 
 	gt.Equal(t, resp.StatusCode, http.StatusNotFound)
 	var body map[string]any
@@ -50,7 +51,7 @@ func TestRecoverer_TurnsPanicInto500(t *testing.T) {
 
 	resp, err := http.Get(ts.URL + "/panic")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 
 	gt.Equal(t, resp.StatusCode, http.StatusInternalServerError)
 	var body map[string]string

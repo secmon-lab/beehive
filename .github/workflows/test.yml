@@ -1,0 +1,100 @@
+name: test
+
+on:
+  push:
+    paths:
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'main.go'
+      - 'Taskfile.yml'
+      - 'openapi.yaml'
+      - 'frontend/**'
+      - 'tests/**'
+      - '.github/workflows/test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Go unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: "go.mod"
+          # Manage build + module cache explicitly below so the cache key
+          # is shared across workflows.
+          cache: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Resolve pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store and node_modules
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+            frontend/node_modules
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Cache Go modules and build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache frontend dist
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: frontend/dist
+          key: ${{ runner.os }}-frontend-dist-${{ hashFiles('frontend/pnpm-lock.yaml', 'frontend/src/**', 'frontend/index.html', 'frontend/vite.config.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-frontend-dist-
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: |
+          if [ ! -d "node_modules" ]; then
+            pnpm install --frozen-lockfile
+          else
+            echo "Using cached node_modules"
+          fi
+
+      - name: Build frontend (for go:embed)
+        working-directory: frontend
+        run: |
+          if [ ! -f "dist/index.html" ]; then
+            pnpm run build
+          else
+            echo "Using cached frontend dist"
+          fi
+
+      - name: Run Go tests
+        run: go test ./...

@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sync/atomic"
 
 	"cloud.google.com/go/firestore"
 	"github.com/m-mizutani/goerr/v2"
@@ -44,10 +43,9 @@ type Firestore struct {
 	client *firestore.Client
 
 	// holderID identifies this process in lock documents. Derived from
-	// hostname + PID + a per-instance counter so concurrent acquires from
-	// the same machine are still distinguishable.
+	// hostname + PID so concurrent acquires from the same machine are
+	// still distinguishable across instances.
 	holderID string
-	holderN  atomic.Uint64
 }
 
 // New constructs a Firestore Repository connected to projectID / databaseID.
