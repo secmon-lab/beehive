@@ -1,0 +1,47 @@
+name: gosec
+
+on:
+  push:
+    paths:
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'main.go'
+      - '.github/workflows/gosec.yml'
+  pull_request:
+    paths:
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'main.go'
+      - '.github/workflows/gosec.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  gosec:
+    name: gosec (reviewdog)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Run gosec via reviewdog
+        uses: reviewdog/action-gosec@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
+          level: warning
+          filter_mode: nofilter
+          fail_level: any
+          gosec_flags: "-exclude-generated ./..."

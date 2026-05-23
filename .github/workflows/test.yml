@@ -1,0 +1,100 @@
+name: test
+
+on:
+  push:
+    paths:
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'main.go'
+      - 'Taskfile.yml'
+      - 'openapi.yaml'
+      - 'frontend/**'
+      - 'tests/**'
+      - '.github/workflows/test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Go unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          # Manage build + module cache explicitly below so the cache key
+          # is shared across workflows.
+          cache: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Resolve pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store and node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+            frontend/node_modules
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Cache Go modules and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache frontend dist
+        uses: actions/cache@v4
+        with:
+          path: frontend/dist
+          key: ${{ runner.os }}-frontend-dist-${{ hashFiles('frontend/pnpm-lock.yaml', 'frontend/src/**', 'frontend/index.html', 'frontend/vite.config.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-frontend-dist-
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: |
+          if [ ! -d "node_modules" ]; then
+            pnpm install --frozen-lockfile
+          else
+            echo "Using cached node_modules"
+          fi
+
+      - name: Build frontend (for go:embed)
+        working-directory: frontend
+        run: |
+          if [ ! -f "dist/index.html" ]; then
+            pnpm run build
+          else
+            echo "Using cached frontend dist"
+          fi
+
+      - name: Run Go tests
+        run: go test ./...
