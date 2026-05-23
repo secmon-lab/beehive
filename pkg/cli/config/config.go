@@ -95,6 +95,7 @@ func (c Logger) LogValue() slog.Value {
 // at shutdown (typically deferred). The closer is always safe to call,
 // even when Configure returned an error.
 func (c *Logger) Configure() (func(), error) {
+	c.Close()
 	c.closer = func() {}
 	if c.Quiet {
 		logging.Quiet()
