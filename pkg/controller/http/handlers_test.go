@@ -16,6 +16,7 @@ import (
 	"github.com/secmon-lab/beehive/pkg/service/source_catalog"
 	"github.com/secmon-lab/beehive/pkg/usecase"
 	"github.com/secmon-lab/beehive/pkg/utils/id"
+	"github.com/secmon-lab/beehive/pkg/utils/safe"
 )
 
 func newTestServer(t *testing.T) *httptest.Server {
@@ -41,7 +42,7 @@ func TestListSources(t *testing.T) {
 
 	resp, err := http.Get(ts.URL + "/api/v1/sources")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusOK)
 
 	var body map[string]any
@@ -56,7 +57,7 @@ func TestGetSource_NotFound(t *testing.T) {
 
 	resp, err := http.Get(ts.URL + "/api/v1/sources/missing")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusNotFound)
 }
 
@@ -71,7 +72,7 @@ func TestSetEnabledOverride(t *testing.T) {
 	gt.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusNoContent)
 }
 
@@ -81,7 +82,7 @@ func TestLookupIoC_BadType(t *testing.T) {
 
 	resp, err := http.Get(ts.URL + "/api/v1/iocs/lookup?type=bogus&value=x")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusBadRequest)
 }
 
@@ -91,7 +92,7 @@ func TestLookupIoC_NotFound(t *testing.T) {
 
 	resp, err := http.Get(ts.URL + "/api/v1/iocs/lookup?type=ipv4&value=1.2.3.4")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusNotFound)
 }
 
@@ -101,7 +102,7 @@ func TestTriggerFetchAll_NoDueSources(t *testing.T) {
 
 	resp, err := http.Post(ts.URL+"/api/v1/fetch", "application/json", nil)
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusOK)
 }
 
