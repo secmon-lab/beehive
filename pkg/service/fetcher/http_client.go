@@ -2,6 +2,7 @@ package fetcher
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -77,7 +78,13 @@ func (c *HTTPClient) Get(ctx context.Context, url string, headers map[string]str
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
 			opts = append(opts, goerr.T(errutil.TagBusy))
 		}
-		return nil, goerr.New("non-2xx response", opts...)
+		// Bake the status code into the message itself so that callers
+		// which surface only `err.Error()` (e.g. RunSource.ErrorMessage)
+		// still expose enough to diagnose without spelunking goerr.V.
+		return nil, goerr.New(
+			fmt.Sprintf("non-2xx response: status=%d", resp.StatusCode),
+			opts...,
+		)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, defaultMaxBody+1))
 	if err != nil {

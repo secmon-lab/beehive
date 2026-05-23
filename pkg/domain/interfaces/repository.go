@@ -57,6 +57,31 @@ type IoCRepository interface {
 	//   * If the ref doc already exists for the same RefID, nothing is
 	//     written for the ref.
 	UpsertIoCWithRef(ctx context.Context, ioc *model.IoC, ref *model.IoCRef) error
+	// BulkUpsertIoCs persists many (IoC, IoCRef) pairs in one
+	// repository-level batch. Each pair has the same upsert semantics as
+	// UpsertIoCWithRef:
+	//   * If the IoC does not exist, it is created (Raw included).
+	//   * If it exists, only LastSeenAt is bumped; Raw stays immutable.
+	//   * If the ref already exists for the same RefID, the ref write is
+	//     skipped.
+	// Implementations are free to fan out / chunk / pipeline writes,
+	// and MUST deduplicate the input by (IoC.ID, RefID) — the same
+	// IoC.ID may appear in multiple pairs, but the implementation must
+	// not stage more than one write to the same document path.
+	//
+	// On success returns the count of distinct IoCs that the
+	// implementation intended to persist (input deduplicated by
+	// IoC.ID). The caller uses this for accurate `IoCCount` reporting
+	// even when the input contained duplicates (e.g. urlhaus emitting
+	// the same URL twice in one feed dump).
+	//
+	// The returned error is the first failure encountered; subsequent
+	// writes within the same batch MAY or MAY NOT have been applied —
+	// callers MUST treat the batch as having unspecified partial state
+	// and rely on re-fetch idempotency to make progress. On error the
+	// returned count still reflects the *intended* deduped IoC count
+	// (matches the success case shape), not how many actually landed.
+	BulkUpsertIoCs(ctx context.Context, pairs []model.IoCWithRef) (persisted int, err error)
 	// ListRecentIoCs returns up to `limit` IoCs ordered by LastSeenAt
 	// descending. Intended for the operator-facing UI; bulk analytics
 	// still go through BigQuery so this method has no pagination cursor

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -84,7 +85,7 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 			// CLAUDE.md §3 on write-cost discipline).
 			mu.Lock()
 			run.Sources = append(run.Sources, *rs)
-			if !containsSourceID(run.SourceIDs, src.ID) {
+			if !slices.Contains(run.SourceIDs, src.ID) {
 				run.SourceIDs = append(run.SourceIDs, src.ID)
 			}
 			run.Skipped++
@@ -101,7 +102,16 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 				slog.String("run_id", string(run.ID)),
 			)
 			start := time.Now()
-			rs, _ := FetchSource(gctx, deps, src, run.ID, force)
+			rs, ferr := FetchSource(gctx, deps, src, run.ID, force)
+			if ferr != nil {
+				// FetchSource normally tucks failures into rs.ErrorMessage
+				// and returns (rs, nil). A non-nil ferr means the failure
+				// happened before rs was populated — surface it so the
+				// operator does not have to read the Run doc to find out.
+				errutil.Handle(gctx, goerr.Wrap(ferr, "fetch source",
+					goerr.V("source_id", src.ID),
+					goerr.V("run_id", run.ID)))
+			}
 			if rs == nil {
 				return nil
 			}
@@ -110,6 +120,7 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 				slog.String("status", string(rs.Status)),
 				slog.Int("ioc_count", rs.IoCCount),
 				slog.Int("article_count", rs.ArticleCount),
+				slog.String("error_message", rs.ErrorMessage),
 				slog.Duration("elapsed", time.Since(start)),
 			)
 			mu.Lock()
@@ -125,7 +136,7 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 			// Same coalescing rule as the skip branch — keep everything
 			// in memory and persist once at the end.
 			run.Sources = append(run.Sources, *rs)
-			if !containsSourceID(run.SourceIDs, rs.SourceID) {
+			if !slices.Contains(run.SourceIDs, rs.SourceID) {
 				run.SourceIDs = append(run.SourceIDs, rs.SourceID)
 			}
 			return nil
@@ -143,15 +154,6 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 		}
 	}
 	return run, nil
-}
-
-func containsSourceID(ids []types.SourceID, id types.SourceID) bool {
-	for _, x := range ids {
-		if x == id {
-			return true
-		}
-	}
-	return false
 }
 
 func isDue(src *model.Source, state *model.SourceState, now time.Time) bool {
@@ -180,4 +182,3 @@ func overallStatus(run *model.Run) types.RunStatus {
 	}
 	return types.RunStatusFailed
 }
-
