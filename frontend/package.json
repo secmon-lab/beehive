@@ -19,7 +19,7 @@
     "openapi-fetch": "^0.13.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.0.0"
+    "react-router-dom": "^7.15.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
