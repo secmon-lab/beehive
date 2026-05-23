@@ -113,6 +113,19 @@ func isNotFound(err error) bool {
 	return false
 }
 
+// isAlreadyExists tells whether err is the Firestore "doc already exists"
+// failure. BulkWriter surfaces it from a Create() job whose target doc
+// pre-exists; the bulk upsert path uses this to fall back to an Update.
+func isAlreadyExists(err error) bool {
+	if err == nil {
+		return false
+	}
+	if s, ok := status.FromError(err); ok && s.Code() == codes.AlreadyExists {
+		return true
+	}
+	return false
+}
+
 func wrapNotFound(err error, what string, key any) error {
 	if isNotFound(err) {
 		return goerr.New(what+" not found",

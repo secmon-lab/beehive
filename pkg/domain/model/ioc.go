@@ -64,3 +64,12 @@ func ComputeRefID(sourceID types.SourceID, articleID types.ArticleID, runID type
 	sum := sha256.Sum256([]byte(string(sourceID) + ":" + target))
 	return types.RefID(hex.EncodeToString(sum[:]))
 }
+
+// IoCWithRef pairs an IoC with the IoCRef that documents this particular
+// occurrence. The bulk write path (Repository.BulkUpsertIoCs) takes a
+// slice of these so feed-kind sources can persist tens of thousands of
+// indicators in a single repository-level batch.
+type IoCWithRef struct {
+	IoC *IoC
+	Ref *IoCRef
+}
