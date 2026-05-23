@@ -59,6 +59,33 @@ func (m *Memory) UpsertIoCWithRef(_ context.Context, ioc *model.IoC, ref *model.
 	return nil
 }
 
+// BulkUpsertIoCs applies UpsertIoCWithRef to each pair sequentially.
+// The in-memory backend has no notion of "batch" — it is cheap enough
+// to loop — so this method exists solely to satisfy the repository
+// contract that the Firestore backend exploits for BulkWriter.
+//
+// Returns the count of distinct IoC.IDs in the input (matches the
+// Firestore implementation's notion of "intended persisted count" so
+// the caller's bookkeeping does not depend on the backend).
+func (m *Memory) BulkUpsertIoCs(ctx context.Context, pairs []model.IoCWithRef) (int, error) {
+	seen := make(map[types.IoCID]bool, len(pairs))
+	for i, p := range pairs {
+		if p.IoC == nil || p.IoC.ID == "" {
+			return 0, goerr.New("ioc id is empty",
+				goerr.V("index", i),
+				goerr.T(errutil.TagInvalidInput))
+		}
+		if err := m.UpsertIoCWithRef(ctx, p.IoC, p.Ref); err != nil {
+			return 0, goerr.Wrap(err, "bulk upsert ioc",
+				goerr.V("index", i),
+				goerr.V("id", p.IoC.ID),
+				goerr.V("count", len(pairs)))
+		}
+		seen[p.IoC.ID] = true
+	}
+	return len(seen), nil
+}
+
 // ListRecentIoCs returns up to `limit` IoCs ordered by LastSeenAt
 // descending. Ties on LastSeenAt fall back to ID for a stable order.
 func (m *Memory) ListRecentIoCs(_ context.Context, limit int) ([]*model.IoC, error) {

@@ -145,6 +145,227 @@ func TestIoCUpsert(t *testing.T) {
 	})
 }
 
+func TestIoCBulkUpsert(t *testing.T) {
+	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
+		ctx := context.Background()
+		now := time.Now().UTC()
+		sid := newSourceID(t)
+		rid := types.RunID("run-" + id.NewULID())
+
+		// Build a 5-pair batch of fresh IPv4 IoCs.
+		pairs := make([]model.IoCWithRef, 0, 5)
+		ids := make([]types.IoCID, 0, 5)
+		for range 5 {
+			value := "10.0." + uniqueOctet() + "." + uniqueOctet()
+			ioc := &model.IoC{
+				ID:          model.ComputeIoCID(types.IoCTypeIPv4, value),
+				Type:        types.IoCTypeIPv4,
+				Value:       value,
+				Raw:         "raw-" + value,
+				FirstSeenAt: now,
+				LastSeenAt:  now,
+			}
+			ref := &model.IoCRef{
+				SourceID:   sid,
+				SourceKind: types.KindFeed,
+				RunID:      rid,
+				Raw:        "raw-" + value,
+				Confidence: 0.85,
+				SeenAt:     now,
+			}
+			pairs = append(pairs, model.IoCWithRef{IoC: ioc, Ref: ref})
+			ids = append(ids, ioc.ID)
+		}
+
+		// First pass: all IoCs are new.
+		n, err := repo.BulkUpsertIoCs(ctx, pairs)
+		gt.NoError(t, err).Required()
+		gt.Equal(t, n, 5)
+		for i, iid := range ids {
+			got, err := repo.GetIoC(ctx, iid)
+			gt.NoError(t, err).Required()
+			gt.Equal(t, got.Raw, pairs[i].IoC.Raw)
+			gt.Equal(t, got.Value, pairs[i].IoC.Value)
+		}
+
+		// Second pass: same pairs but later LastSeenAt and a different
+		// Raw. Raw must stay immutable; LastSeenAt must be bumped.
+		// This is the path that exposed the BulkWriter "duplicate
+		// write for path" bug — Create→AlreadyExists→Update on the
+		// same path within one BulkWriter session — so it MUST pass
+		// once the GetAll-classify approach is in place.
+		later := now.Add(2 * time.Hour)
+		repeat := make([]model.IoCWithRef, 0, len(pairs))
+		for i := range pairs {
+			ioc := *pairs[i].IoC
+			ioc.Raw = "should-not-overwrite"
+			ioc.LastSeenAt = later
+			ref := *pairs[i].Ref
+			ref.SeenAt = later
+			repeat = append(repeat, model.IoCWithRef{IoC: &ioc, Ref: &ref})
+		}
+		n, err = repo.BulkUpsertIoCs(ctx, repeat)
+		gt.NoError(t, err).Required()
+		gt.Equal(t, n, 5)
+		for i, iid := range ids {
+			got, err := repo.GetIoC(ctx, iid)
+			gt.NoError(t, err).Required()
+			gt.Equal(t, got.Raw, pairs[i].IoC.Raw) // unchanged
+			gt.True(t, !got.LastSeenAt.Before(later.Add(-time.Second)))
+		}
+
+		// Empty batch is a valid no-op.
+		n, err = repo.BulkUpsertIoCs(ctx, nil)
+		gt.NoError(t, err)
+		gt.Equal(t, n, 0)
+		n, err = repo.BulkUpsertIoCs(ctx, []model.IoCWithRef{})
+		gt.NoError(t, err)
+		gt.Equal(t, n, 0)
+	})
+}
+
+// TestIoCBulkUpsertInBatchDuplicates exercises the in-batch dedup
+// path. urlhaus and similar feeds emit the same URL multiple times in
+// one csv dump; the bulk path must collapse them to one IoC doc and
+// not crash with "BulkWriter received duplicate write for path".
+func TestIoCBulkUpsertInBatchDuplicates(t *testing.T) {
+	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
+		ctx := context.Background()
+		now := time.Now().UTC()
+		sid := newSourceID(t)
+		rid := types.RunID("run-" + id.NewULID())
+
+		value := "10.3." + uniqueOctet() + "." + uniqueOctet()
+		iocID := model.ComputeIoCID(types.IoCTypeIPv4, value)
+		mkPair := func(seenAt time.Time) model.IoCWithRef {
+			return model.IoCWithRef{
+				IoC: &model.IoC{
+					ID:          iocID,
+					Type:        types.IoCTypeIPv4,
+					Value:       value,
+					Raw:         "first-raw",
+					FirstSeenAt: seenAt,
+					LastSeenAt:  seenAt,
+				},
+				Ref: &model.IoCRef{
+					SourceID:   sid,
+					SourceKind: types.KindFeed,
+					RunID:      rid,
+					Raw:        "first-raw",
+					Confidence: 0.85,
+					SeenAt:     seenAt,
+				},
+			}
+		}
+
+		// 5 copies of the same (Type, Value) — duplicated path-wise.
+		// Varying LastSeenAt to exercise "keep latest" semantics.
+		batch := []model.IoCWithRef{
+			mkPair(now),
+			mkPair(now.Add(time.Minute)),
+			mkPair(now.Add(2 * time.Minute)),
+			mkPair(now.Add(3 * time.Minute)),
+			mkPair(now.Add(4 * time.Minute)),
+		}
+
+		n, err := repo.BulkUpsertIoCs(ctx, batch)
+		gt.NoError(t, err).Required()
+		gt.Equal(t, n, 1) // distinct count, not raw input count
+
+		got, err := repo.GetIoC(ctx, iocID)
+		gt.NoError(t, err).Required()
+		gt.Equal(t, got.Raw, "first-raw")
+		gt.True(t, !got.LastSeenAt.Before(now.Add(4*time.Minute).Add(-time.Second)))
+	})
+}
+
+func TestIoCBulkUpsertMixed(t *testing.T) {
+	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
+		ctx := context.Background()
+		now := time.Now().UTC()
+		sid := newSourceID(t)
+		rid := types.RunID("run-" + id.NewULID())
+
+		// Seed one existing IoC via the per-pair path so the bulk batch
+		// sees a "mixed" mix of new + existing.
+		existingValue := "10.1." + uniqueOctet() + "." + uniqueOctet()
+		existing := &model.IoC{
+			ID:          model.ComputeIoCID(types.IoCTypeIPv4, existingValue),
+			Type:        types.IoCTypeIPv4,
+			Value:       existingValue,
+			Raw:         "original-raw",
+			FirstSeenAt: now,
+			LastSeenAt:  now,
+		}
+		existingRef := &model.IoCRef{
+			SourceID:   sid,
+			SourceKind: types.KindFeed,
+			RunID:      rid,
+			Raw:        "original-raw",
+			Confidence: 0.7,
+			SeenAt:     now,
+		}
+		gt.NoError(t, repo.UpsertIoCWithRef(ctx, existing, existingRef)).Required()
+
+		// New batch: 1 repeated + 3 new, with later LastSeenAt.
+		later := now.Add(time.Hour)
+		pairs := []model.IoCWithRef{}
+		// 1) repeat with changed Raw
+		repeat := *existing
+		repeat.Raw = "bulk-raw-should-be-ignored"
+		repeat.LastSeenAt = later
+		repeatRef := *existingRef
+		repeatRef.SeenAt = later
+		pairs = append(pairs, model.IoCWithRef{IoC: &repeat, Ref: &repeatRef})
+		// 2-4) three fresh values
+		freshIDs := make([]types.IoCID, 0, 3)
+		for range 3 {
+			value := "10.2." + uniqueOctet() + "." + uniqueOctet()
+			ioc := &model.IoC{
+				ID:          model.ComputeIoCID(types.IoCTypeIPv4, value),
+				Type:        types.IoCTypeIPv4,
+				Value:       value,
+				Raw:         "fresh-raw-" + value,
+				FirstSeenAt: later,
+				LastSeenAt:  later,
+			}
+			ref := &model.IoCRef{
+				SourceID:   sid,
+				SourceKind: types.KindFeed,
+				RunID:      rid,
+				Raw:        "fresh-raw-" + value,
+				Confidence: 0.9,
+				SeenAt:     later,
+			}
+			pairs = append(pairs, model.IoCWithRef{IoC: ioc, Ref: ref})
+			freshIDs = append(freshIDs, ioc.ID)
+		}
+
+		n, err := repo.BulkUpsertIoCs(ctx, pairs)
+		gt.NoError(t, err).Required()
+		gt.Equal(t, n, 4) // 1 existing + 3 fresh, all distinct
+
+		// The pre-existing one keeps its Raw, has its LastSeenAt bumped.
+		got, err := repo.GetIoC(ctx, existing.ID)
+		gt.NoError(t, err).Required()
+		gt.Equal(t, got.Raw, "original-raw")
+		gt.True(t, !got.LastSeenAt.Before(later.Add(-time.Second)))
+
+		// Fresh ones are stored with their Raw intact.
+		for _, fid := range freshIDs {
+			g, err := repo.GetIoC(ctx, fid)
+			gt.NoError(t, err).Required()
+			gt.True(t, len(g.Raw) > 0)
+		}
+
+		// Re-running the same bulk again is idempotent (ref dedup, no
+		// new docs, no error).
+		n, err = repo.BulkUpsertIoCs(ctx, pairs)
+		gt.NoError(t, err).Required()
+		gt.Equal(t, n, 4)
+	})
+}
+
 func TestRun(t *testing.T) {
 	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
 		ctx := context.Background()

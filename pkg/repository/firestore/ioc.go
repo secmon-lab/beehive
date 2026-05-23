@@ -3,13 +3,26 @@ package firestore
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	"github.com/secmon-lab/beehive/pkg/domain/types"
 	"github.com/secmon-lab/beehive/pkg/utils/errutil"
+	"github.com/secmon-lab/beehive/pkg/utils/logging"
 )
+
+// bulkChunkSize controls how many distinct IoCs are processed per
+// chunk: one GetAll RPC to classify create-vs-update, then one
+// BulkWriter session that drains both kinds. Kept as a package var so
+// tests can shrink it without staging 500+ docs.
+//
+// Firestore's BulkWriter internally batches at 500 writes per RPC and
+// BatchGet caps at 1000 reads per RPC, so 500 fits cleanly in both
+// dimensions and yields one progress log line per ~1–2s of work.
+var bulkChunkSize = 500
 
 // ListRecentIoCs returns up to `limit` IoCs ordered by LastSeenAt
 // descending. Needs a Firestore index on `LastSeenAt desc` — the
@@ -53,6 +66,224 @@ func (f *Firestore) GetIoC(ctx context.Context, id types.IoCID) (*model.IoC, err
 		return nil, goerr.Wrap(err, "decode ioc", goerr.V("id", id))
 	}
 	return &i, nil
+}
+
+// BulkUpsertIoCs persists many (IoC, ref) pairs efficiently. Designed
+// for feed-kind sources that return thousands of indicators per fetch —
+// calling UpsertIoCWithRef in a loop there would fire one transactional
+// RPC per pair (~50–100ms × 10k+ = tens of minutes).
+//
+// Strategy (per chunk):
+//  1. Bulk-read existing IoC docs via `client.GetAll` (one RPC for the
+//     whole chunk).
+//  2. One BulkWriter session: stage `Create` for IoCs that do not
+//     exist (Raw included), `Update {LastSeenAt}` for those that do
+//     (Raw preserved). Each document path is touched at most once
+//     per session, which sidesteps BulkWriter's "duplicate write for
+//     path" rejection.
+//  3. Refs live in a sub-collection so their paths never collide with
+//     the IoC writes. `Create` is used; `AlreadyExists` is a silent
+//     no-op (natural-key dedup).
+//
+// Trade-off vs UpsertIoCWithRef:
+//   - We give up the read-conditional "skip identical-value write"
+//     optimisation per IoC; bulk mode always issues 1 Update for
+//     existing IoCs. The throughput gain dominates the small extra
+//     write cost.
+//   - Cross-source race (different sources persisting the same IoC at
+//     the same time) can lose a LastSeenAt bump: the loser's Create
+//     hits AlreadyExists. We log the count as `chunk_raced` and move
+//     on — the next fetch corrects it (CLAUDE.md §6: re-fetches are
+//     cheap and idempotent).
+//
+// Returns the count of distinct IoCs in the (deduped) input — what
+// the caller uses for `IoCCount` reporting.
+func (f *Firestore) BulkUpsertIoCs(ctx context.Context, pairs []model.IoCWithRef) (int, error) {
+	if len(pairs) == 0 {
+		return 0, nil
+	}
+	logger := logging.From(ctx)
+
+	entries, err := dedupePairs(pairs)
+	if err != nil {
+		return 0, err
+	}
+	total := len(entries)
+	started := time.Now()
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "ioc: bulk upsert start",
+		slog.Int("input_pairs", len(pairs)),
+		slog.Int("deduped_iocs", total),
+		slog.Int("chunk_size", bulkChunkSize),
+	)
+
+	for offset := 0; offset < total; offset += bulkChunkSize {
+		end := min(offset+bulkChunkSize, total)
+		chunk := entries[offset:end]
+		if cerr := f.bulkUpsertChunk(ctx, chunk, started, end, total); cerr != nil {
+			// Return the intended deduped count even on error so the
+			// caller's IoCCount metric stays consistent across success
+			// and failure paths.
+			return total, cerr
+		}
+	}
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "ioc: bulk upsert done",
+		slog.Int("persisted", total),
+		slog.Duration("total_elapsed", time.Since(started)),
+	)
+	return total, nil
+}
+
+func (f *Firestore) bulkUpsertChunk(ctx context.Context, chunk []*iocEntry, started time.Time, done, total int) error {
+	logger := logging.From(ctx)
+	chunkStart := time.Now()
+
+	// 1. Classify: which IoCs already exist?
+	iocRefs := make([]*firestore.DocumentRef, len(chunk))
+	for i, e := range chunk {
+		iocRefs[i] = f.client.Collection(collectionIoCs).Doc(string(e.ioc.ID))
+	}
+	snaps, err := f.client.GetAll(ctx, iocRefs)
+	if err != nil {
+		return goerr.Wrap(err, "bulk get iocs for classification",
+			goerr.V("chunk_size", len(chunk)))
+	}
+
+	// 2. Single BulkWriter session: Create-new XOR Update-existing per
+	//    IoC path, plus Create per ref path. No path gets two writes.
+	bw := f.client.BulkWriter(ctx)
+	type job struct {
+		e       *iocEntry
+		iocJob  *firestore.BulkWriterJob
+		refJobs []*firestore.BulkWriterJob
+		wasNew  bool
+	}
+	jobs := make([]job, len(chunk))
+	var newCount, existingCount int
+	for i, snap := range snaps {
+		e := chunk[i]
+		wasNew := !snap.Exists()
+		var iocJob *firestore.BulkWriterJob
+		var jerr error
+		if wasNew {
+			iocJob, jerr = bw.Create(iocRefs[i], e.ioc)
+			newCount++
+		} else {
+			iocJob, jerr = bw.Update(iocRefs[i], []firestore.Update{
+				{Path: "LastSeenAt", Value: e.ioc.LastSeenAt},
+			})
+			existingCount++
+		}
+		if jerr != nil {
+			bw.End()
+			return goerr.Wrap(jerr, "stage ioc write",
+				goerr.V("id", e.ioc.ID),
+				goerr.V("new", wasNew))
+		}
+		jobs[i] = job{e: e, iocJob: iocJob, wasNew: wasNew}
+		for _, r := range e.refs {
+			refDocRef := iocRefs[i].Collection(collectionRefs).Doc(string(r.refID))
+			refJob, rerr := bw.Create(refDocRef, r.ref)
+			if rerr != nil {
+				bw.End()
+				return goerr.Wrap(rerr, "stage ref create",
+					goerr.V("id", e.ioc.ID))
+			}
+			jobs[i].refJobs = append(jobs[i].refJobs, refJob)
+		}
+	}
+	bw.End()
+
+	// 3. Drain results. AlreadyExists on a Create is a cross-source
+	//    race — accept it (doc exists, which is the desired state) and
+	//    move on. AlreadyExists on a ref Create is the natural-key
+	//    dedup case (CLAUDE.md §3) and is also silent.
+	var raced int
+	for _, j := range jobs {
+		if _, rerr := j.iocJob.Results(); rerr != nil {
+			if j.wasNew && isAlreadyExists(rerr) {
+				raced++
+				continue
+			}
+			return goerr.Wrap(rerr, "write ioc",
+				goerr.V("id", j.e.ioc.ID),
+				goerr.V("new", j.wasNew))
+		}
+		for _, rj := range j.refJobs {
+			if _, rerr := rj.Results(); rerr != nil && !isAlreadyExists(rerr) {
+				return goerr.Wrap(rerr, "create ref",
+					goerr.V("id", j.e.ioc.ID))
+			}
+		}
+	}
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "ioc: bulk upsert progress",
+		slog.Int("done", done),
+		slog.Int("total", total),
+		slog.Int("chunk_new", newCount),
+		slog.Int("chunk_existing", existingCount),
+		slog.Int("chunk_raced", raced),
+		slog.Duration("chunk_elapsed", time.Since(chunkStart)),
+		slog.Duration("total_elapsed", time.Since(started)),
+	)
+	return nil
+}
+
+// iocEntry is the deduplicated form: one entry per distinct IoC.ID,
+// carrying all distinct refs observed for it.
+type iocEntry struct {
+	ioc  *model.IoC
+	refs []refEntry
+}
+
+type refEntry struct {
+	ref   *model.IoCRef
+	refID types.RefID
+}
+
+// dedupePairs collapses (IoC.ID, RefID) duplicates so the chunked
+// writer only ever stages one operation per Firestore path. Even with
+// upstream dedup at the usecase layer, the repository contract
+// requires defensive dedup so a buggy caller cannot trigger the
+// `BulkWriter received duplicate write for path` failure mode.
+//
+// Semantics on duplicate IoC.ID: keep the entry whose LastSeenAt is
+// most recent. Raw is preserved from the first occurrence (matches
+// UpsertIoCWithRef's immutability rule for Raw).
+func dedupePairs(pairs []model.IoCWithRef) ([]*iocEntry, error) {
+	byID := make(map[types.IoCID]*iocEntry, len(pairs))
+	seenRef := make(map[string]bool, len(pairs))
+	ordered := make([]*iocEntry, 0, len(pairs))
+	for i := range pairs {
+		p := &pairs[i]
+		if p.IoC == nil || p.IoC.ID == "" {
+			return nil, goerr.New("ioc id is empty",
+				goerr.V("index", i),
+				goerr.T(errutil.TagInvalidInput))
+		}
+		e, ok := byID[p.IoC.ID]
+		if !ok {
+			e = &iocEntry{ioc: p.IoC}
+			byID[p.IoC.ID] = e
+			ordered = append(ordered, e)
+		} else if p.IoC.LastSeenAt.After(e.ioc.LastSeenAt) {
+			// Build a shallow copy that keeps the first-seen Raw and
+			// bumps LastSeenAt to the latest observed value.
+			merged := *e.ioc
+			merged.LastSeenAt = p.IoC.LastSeenAt
+			e.ioc = &merged
+		}
+		if p.Ref != nil {
+			refID := model.ComputeRefID(p.Ref.SourceID, p.Ref.ArticleID, p.Ref.RunID)
+			key := string(p.IoC.ID) + ":" + string(refID)
+			if !seenRef[key] {
+				seenRef[key] = true
+				e.refs = append(e.refs, refEntry{ref: p.Ref, refID: refID})
+			}
+		}
+	}
+	return ordered, nil
 }
 
 // UpsertIoCWithRef implements the cost-optimised upsert: new IoC -> full

@@ -39,7 +39,7 @@ func FetchSource(ctx context.Context, deps Deps, src *model.Source, runID types.
 			rs.FinishedAt = time.Now().UTC()
 			return rs, nil
 		}
-		return failedRunSource(rs, err), nil
+		return failedRunSource(ctx, rs, err), nil
 	}
 	defer func() {
 		if rerr := lock.Release(ctx); rerr != nil {
@@ -49,12 +49,12 @@ func FetchSource(ctx context.Context, deps Deps, src *model.Source, runID types.
 	}()
 
 	if deps.Registry == nil {
-		return failedRunSource(rs, goerr.New("provider registry not configured",
+		return failedRunSource(ctx, rs, goerr.New("provider registry not configured",
 			goerr.T(errutil.TagInvalidInput))), nil
 	}
 	prov, err := deps.Registry.Resolve(string(src.Type))
 	if err != nil {
-		return failedRunSource(rs, err), nil
+		return failedRunSource(ctx, rs, err), nil
 	}
 
 	switch p := prov.(type) {
@@ -68,7 +68,7 @@ func FetchSource(ctx context.Context, deps Deps, src *model.Source, runID types.
 			goerr.T(errutil.TagInvalidInput))
 	}
 	if err != nil {
-		return failedRunSource(rs, err), nil
+		return failedRunSource(ctx, rs, err), nil
 	}
 	rs.Status = types.RunStatusSuccess
 	rs.FinishedAt = time.Now().UTC()
@@ -95,10 +95,19 @@ func FetchSource(ctx context.Context, deps Deps, src *model.Source, runID types.
 	return rs, nil
 }
 
-func failedRunSource(rs *model.RunSource, err error) *model.RunSource {
+// failedRunSource marks rs as failed AND surfaces the full structured
+// error via errutil.Handle so every `goerr.V(...)` along the chain
+// (e.g. HTTP status, URL, source_id, tags) shows up as a separate
+// slog attr in an ERROR log line. The compact `rs.ErrorMessage`
+// string is for the persisted Run doc; the structured log line is for
+// the operator scrolling stderr.
+func failedRunSource(ctx context.Context, rs *model.RunSource, err error) *model.RunSource {
 	rs.Status = types.RunStatusFailed
 	rs.ErrorMessage = err.Error()
 	rs.FinishedAt = time.Now().UTC()
+	errutil.Handle(ctx, goerr.Wrap(err, "source failed",
+		goerr.V("source_id", rs.SourceID),
+		goerr.V("source_kind", rs.SourceKind)))
 	return rs
 }
 
@@ -196,7 +205,7 @@ func fetchBlog(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 			slog.Int("seeds", len(seeds)),
 			slog.Duration("elapsed", time.Since(extractStart)),
 		)
-		if err := persistSeeds(ctx, deps, src, runID, article.ID, "", seeds); err != nil {
+		if err := persistSeeds(ctx, deps, src, article.ID, seeds); err != nil {
 			return err
 		}
 		rs.IoCCount += len(seeds)
@@ -236,11 +245,104 @@ func fetchFeed(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 		asArr = append(asArr, *s)
 	}
 	postSeeds := postNormalize(asArr)
-	rs.IoCCount = len(postSeeds)
-	return persistSeeds(ctx, deps, src, runID, "", runID, postSeeds)
+	persisted, perr := bulkPersistSeeds(ctx, deps, src, runID, postSeeds)
+	// IoCCount tracks the distinct IoCs we intended to persist (post-
+	// dedup). Set it even on error so the operator sees the real
+	// scale of what was attempted, not just len(postSeeds) which
+	// inflates with in-feed duplicates (e.g. urlhaus emitting the
+	// same URL twice in csv_recent).
+	rs.IoCCount = persisted
+	return perr
 }
 
-func persistSeeds(ctx context.Context, deps Deps, src *model.Source, runID types.RunID, articleID types.ArticleID, feedRun types.RunID, seeds []*interfaces.IoCSeed) error {
+// bulkPersistSeeds is the feed-kind persistence path. Feed providers
+// (urlhaus, abuseipdb, etc.) routinely return thousands of seeds per
+// fetch; calling Repo.UpsertIoCWithRef in a loop here would fire one
+// Firestore transaction per seed (~50–100ms × 10k+) and exceed any
+// reasonable Cloud Run request budget. The repository's BulkUpsertIoCs
+// drains the same writes through a BulkWriter instead.
+//
+// Returns the count of distinct IoCs the backend intended to persist
+// (post-dedup) so fetchFeed can populate rs.IoCCount accurately. On
+// error the count still reflects intent, matching the success shape.
+//
+// Blog per-article persistence still goes through persistSeeds — the
+// volume is small (a handful of IoCs per article) and the
+// transactional path keeps the "skip identical-value write" property
+// that protects Raw immutability.
+func bulkPersistSeeds(ctx context.Context, deps Deps, src *model.Source, runID types.RunID, seeds []*interfaces.IoCSeed) (int, error) {
+	if len(seeds) == 0 {
+		return 0, nil
+	}
+	logger := logging.From(ctx)
+	now := time.Now().UTC()
+	// Dedup at the usecase layer so the log line below shows the
+	// correct "we are about to write N" number. The repository
+	// defensively dedupes again — both are cheap and the defensive
+	// one protects future callers from triggering the BulkWriter
+	// "duplicate write for path" failure.
+	pairs := make([]model.IoCWithRef, 0, len(seeds))
+	seen := make(map[types.IoCID]bool, len(seeds))
+	for _, s := range seeds {
+		if s == nil {
+			continue
+		}
+		iocID := model.ComputeIoCID(s.Type, s.Value)
+		if seen[iocID] {
+			continue
+		}
+		seen[iocID] = true
+		ioc := &model.IoC{
+			ID:          iocID,
+			Type:        s.Type,
+			Value:       s.Value,
+			Raw:         s.Raw,
+			FirstSeenAt: now,
+			LastSeenAt:  now,
+		}
+		ref := &model.IoCRef{
+			SourceID:   src.ID,
+			SourceKind: src.Kind,
+			RunID:      runID,
+			Raw:        s.Raw,
+			Confidence: s.Confidence,
+			SeenAt:     now,
+		}
+		pairs = append(pairs, model.IoCWithRef{IoC: ioc, Ref: ref})
+	}
+	logger.LogAttrs(ctx, slog.LevelInfo, "feed: persist start",
+		slog.String("source_id", string(src.ID)),
+		slog.Int("input_seeds", len(seeds)),
+		slog.Int("distinct_iocs", len(pairs)),
+	)
+	persistStart := time.Now()
+	persisted, err := deps.Repo.BulkUpsertIoCs(ctx, pairs)
+	elapsed := time.Since(persistStart)
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelWarn, "feed: persist failed",
+			slog.String("source_id", string(src.ID)),
+			slog.Int("distinct_iocs", len(pairs)),
+			slog.Int("persisted", persisted),
+			slog.Duration("elapsed", elapsed),
+		)
+		return persisted, goerr.Wrap(err, "bulk upsert iocs",
+			goerr.V("source_id", src.ID),
+			goerr.V("distinct_iocs", len(pairs)))
+	}
+	logger.LogAttrs(ctx, slog.LevelInfo, "feed: persist end",
+		slog.String("source_id", string(src.ID)),
+		slog.Int("persisted", persisted),
+		slog.Duration("elapsed", elapsed),
+	)
+	return persisted, nil
+}
+
+// persistSeeds is the blog per-article persistence path: a handful of
+// IoCs per article go through the transactional UpsertIoCWithRef so the
+// per-write "skip identical value" optimisation kicks in and Raw stays
+// immutable across re-fetches. Feed-kind sources use bulkPersistSeeds
+// instead.
+func persistSeeds(ctx context.Context, deps Deps, src *model.Source, articleID types.ArticleID, seeds []*interfaces.IoCSeed) error {
 	now := time.Now().UTC()
 	for _, s := range seeds {
 		if s == nil {
@@ -258,7 +360,6 @@ func persistSeeds(ctx context.Context, deps Deps, src *model.Source, runID types
 			SourceID:   src.ID,
 			SourceKind: src.Kind,
 			ArticleID:  articleID,
-			RunID:      feedRun,
 			Raw:        s.Raw,
 			Confidence: s.Confidence,
 			SeenAt:     now,
