@@ -4,8 +4,11 @@
 package config
 
 import (
+	"context"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/m-mizutani/goerr/v2"
@@ -14,46 +17,173 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-// Logger collects the user-facing logger settings.
+// Logger collects the user-facing logger settings. The flag surface
+// mirrors secmon-lab/hecatoncheires so CLI users get clog console output
+// with goerr-aware attributes by default; Cloud Run deployments flip
+// BEEHIVE_LOG_FORMAT=json to fall back to structured logs.
 type Logger struct {
-	Level  string // "debug"|"info"|"warn"|"error"
-	Format string // "json"|"text"
+	Level      string // "debug"|"info"|"warn"|"error"
+	FormatName string // "console"|"json"
+	Output     string // "stdout"|"stderr"|"-"|<path>
+	Quiet      bool
+	Stacktrace bool
+
+	closer func()
 }
 
 func (c *Logger) Flags() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
 			Name:        "log-level",
+			Category:    "logging",
+			Aliases:     []string{"l"},
 			Sources:     cli.EnvVars("BEEHIVE_LOG_LEVEL"),
+			Usage:       "Set log level [debug|info|warn|error]",
 			Value:       "info",
 			Destination: &c.Level,
 		},
 		&cli.StringFlag{
 			Name:        "log-format",
+			Category:    "logging",
+			Aliases:     []string{"f"},
 			Sources:     cli.EnvVars("BEEHIVE_LOG_FORMAT"),
-			Value:       "json",
-			Destination: &c.Format,
+			Usage:       "Set log format [auto|console|json] (auto = console on TTY, json otherwise)",
+			Value:       "auto",
+			Destination: &c.FormatName,
+		},
+		&cli.StringFlag{
+			Name:        "log-output",
+			Category:    "logging",
+			Aliases:     []string{"o"},
+			Sources:     cli.EnvVars("BEEHIVE_LOG_OUTPUT"),
+			Usage:       "Set log output ('-', 'stdout', 'stderr', or a file path)",
+			Value:       "stderr",
+			Destination: &c.Output,
+		},
+		&cli.BoolFlag{
+			Name:        "log-quiet",
+			Category:    "logging",
+			Aliases:     []string{"q"},
+			Usage:       "Quiet mode (drop every log record)",
+			Sources:     cli.EnvVars("BEEHIVE_LOG_QUIET"),
+			Destination: &c.Quiet,
+		},
+		&cli.BoolFlag{
+			Name:        "log-stacktrace",
+			Category:    "logging",
+			Aliases:     []string{"s"},
+			Usage:       "Show goerr stacktraces (console format only)",
+			Sources:     cli.EnvVars("BEEHIVE_LOG_STACKTRACE"),
+			Destination: &c.Stacktrace,
+			Value:       true,
 		},
 	}
 }
 
-func (c *Logger) Build(w io.Writer) *slog.Logger {
-	return logging.Build(w, logging.Config{
-		Level:  parseLevel(c.Level),
-		Format: c.Format,
-	})
+// LogValue lets the logger config show up as a structured attribute
+// when echoed back through slog.
+func (c Logger) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("level", c.Level),
+		slog.String("format", c.FormatName),
+		slog.String("output", c.Output),
+	)
 }
 
-func parseLevel(s string) slog.Level {
+// Configure resolves the flag values into a *slog.Logger, installs it
+// as the package default, and returns a closer the caller must invoke
+// at shutdown (typically deferred). The closer is always safe to call,
+// even when Configure returned an error.
+func (c *Logger) Configure() (func(), error) {
+	c.Close()
+	c.closer = func() {}
+	if c.Quiet {
+		logging.Quiet()
+		return c.closer, nil
+	}
+
+	format, err := parseFormat(c.FormatName)
+	if err != nil {
+		return c.closer, err
+	}
+
+	level, err := parseLevel(c.Level)
+	if err != nil {
+		return c.closer, err
+	}
+
+	output, closer, err := openOutput(c.Output)
+	if err != nil {
+		return c.closer, err
+	}
+	c.closer = closer
+
+	logger := logging.New(output, level, format, c.Stacktrace)
+	logging.SetDefault(logger)
+	return c.closer, nil
+}
+
+// Close releases any file handle opened by Configure. Safe to call
+// multiple times.
+func (c *Logger) Close() {
+	if c.closer != nil {
+		c.closer()
+		c.closer = nil
+	}
+}
+
+func parseFormat(s string) (logging.Format, error) {
+	switch strings.ToLower(s) {
+	case "", "auto":
+		return logging.FormatAuto, nil
+	case "console", "text":
+		return logging.FormatConsole, nil
+	case "json":
+		return logging.FormatJSON, nil
+	default:
+		return 0, goerr.New("invalid log format (want auto|console|json)",
+			goerr.V("format", s),
+			goerr.T(errutil.TagInvalidInput))
+	}
+}
+
+func parseLevel(s string) (slog.Level, error) {
 	switch strings.ToLower(s) {
 	case "debug":
-		return slog.LevelDebug
+		return slog.LevelDebug, nil
+	case "", "info":
+		return slog.LevelInfo, nil
 	case "warn", "warning":
-		return slog.LevelWarn
+		return slog.LevelWarn, nil
 	case "error":
-		return slog.LevelError
+		return slog.LevelError, nil
 	default:
-		return slog.LevelInfo
+		return 0, goerr.New("invalid log level (want debug|info|warn|error)",
+			goerr.V("level", s),
+			goerr.T(errutil.TagInvalidInput))
+	}
+}
+
+func openOutput(spec string) (io.Writer, func(), error) {
+	noop := func() {}
+	switch spec {
+	case "", "stderr":
+		return os.Stderr, noop, nil
+	case "stdout", "-":
+		return os.Stdout, noop, nil
+	default:
+		f, err := os.OpenFile(filepath.Clean(spec), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+		if err != nil {
+			return nil, noop, goerr.Wrap(err, "open log file",
+				goerr.V("path", spec))
+		}
+		closer := func() {
+			if err := f.Close(); err != nil {
+				errutil.Handle(context.Background(),
+					goerr.Wrap(err, "close log file", goerr.V("path", spec)))
+			}
+		}
+		return f, closer, nil
 	}
 }
 

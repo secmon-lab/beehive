@@ -56,6 +56,34 @@ func TestSources_DefaultPath(t *testing.T) {
 	gt.Equal(t, c.Path, "./config.toml")
 }
 
+func TestLogger_Configure_Auto(t *testing.T) {
+	// stderr is normally a TTY in interactive runs and a pipe in CI;
+	// either way the resolver must not error out.
+	c := config.Logger{Level: "info", FormatName: "auto", Output: "stderr"}
+	closer, err := c.Configure()
+	gt.NoError(t, err)
+	t.Cleanup(closer)
+}
+
+func TestLogger_Configure_RejectsBadFormat(t *testing.T) {
+	c := config.Logger{Level: "info", FormatName: "xml", Output: "stderr"}
+	_, err := c.Configure()
+	gt.Error(t, err)
+}
+
+func TestLogger_Configure_RejectsBadLevel(t *testing.T) {
+	c := config.Logger{Level: "loud", FormatName: "json", Output: "stderr"}
+	_, err := c.Configure()
+	gt.Error(t, err)
+}
+
+func TestLogger_Configure_QuietWins(t *testing.T) {
+	c := config.Logger{Quiet: true, Level: "garbage", FormatName: "garbage"}
+	closer, err := c.Configure()
+	gt.NoError(t, err)
+	t.Cleanup(closer)
+}
+
 func mapKeys[K comparable, V any](m map[K]V) []K {
 	out := make([]K, 0, len(m))
 	for k := range m {

@@ -5,7 +5,6 @@ package cli
 
 import (
 	"context"
-	"os"
 
 	"github.com/secmon-lab/beehive/pkg/cli/config"
 	bhhttp "github.com/secmon-lab/beehive/pkg/controller/http"
@@ -38,9 +37,14 @@ func Run(ctx context.Context, args []string, version string) error {
 		Version: version,
 		Flags:   cfg.Logger.Flags(),
 		Before: func(ctx context.Context, _ *cli.Command) (context.Context, error) {
-			logger := cfg.Logger.Build(os.Stderr)
-			logging.SetDefault(logger)
-			return logging.With(ctx, logger), nil
+			if _, err := cfg.Logger.Configure(); err != nil {
+				return ctx, err
+			}
+			return logging.With(ctx, logging.Default()), nil
+		},
+		After: func(_ context.Context, _ *cli.Command) error {
+			cfg.Logger.Close()
+			return nil
 		},
 		Commands: []*cli.Command{
 			cmdServe(cfg),
