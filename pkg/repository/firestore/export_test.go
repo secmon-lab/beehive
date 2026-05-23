@@ -18,6 +18,16 @@ type DedupedSummary struct {
 	RefIDs   []types.RefID
 }
 
+// SetBulkChunkSizeForTest overrides bulkChunkSize for the duration of
+// a test and returns a restore function. Tests use this to exercise
+// the chunking + cross-chunk progress logging path without having to
+// stage 500+ docs.
+func SetBulkChunkSizeForTest(n int) func() {
+	prev := bulkChunkSize
+	bulkChunkSize = n
+	return func() { bulkChunkSize = prev }
+}
+
 // DedupePairsForTest wraps dedupePairs so the test in the
 // firestore_test external package can exercise the dedup logic
 // without standing up a real Firestore client.

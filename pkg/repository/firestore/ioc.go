@@ -165,21 +165,36 @@ func (f *Firestore) bulkUpsertChunk(ctx context.Context, chunk []*iocEntry, star
 		e := chunk[i]
 		wasNew := !snap.Exists()
 		var iocJob *firestore.BulkWriterJob
-		var jerr error
-		if wasNew {
+		switch {
+		case wasNew:
+			var jerr error
 			iocJob, jerr = bw.Create(iocRefs[i], e.ioc)
+			if jerr != nil {
+				bw.End()
+				return goerr.Wrap(jerr, "stage ioc create",
+					goerr.V("id", e.ioc.ID))
+			}
 			newCount++
-		} else {
+		case !e.ioc.LastSeenAt.IsZero():
+			// Mirror UpsertIoCWithRef's defensive "don't bump backwards
+			// or with zero" rule: only Update when the caller actually
+			// supplied a LastSeenAt. A zero-value seed (programming bug
+			// or partially-filled IoC) should never clobber the stored
+			// timestamp.
+			var jerr error
 			iocJob, jerr = bw.Update(iocRefs[i], []firestore.Update{
 				{Path: "LastSeenAt", Value: e.ioc.LastSeenAt},
 			})
+			if jerr != nil {
+				bw.End()
+				return goerr.Wrap(jerr, "stage ioc lastseenat update",
+					goerr.V("id", e.ioc.ID))
+			}
 			existingCount++
-		}
-		if jerr != nil {
-			bw.End()
-			return goerr.Wrap(jerr, "stage ioc write",
-				goerr.V("id", e.ioc.ID),
-				goerr.V("new", wasNew))
+		default:
+			// Existing IoC, no LastSeenAt update requested. Leave the
+			// IoC doc alone; refs still get staged below.
+			existingCount++
 		}
 		jobs[i] = job{e: e, iocJob: iocJob, wasNew: wasNew}
 		for _, r := range e.refs {
@@ -201,14 +216,18 @@ func (f *Firestore) bulkUpsertChunk(ctx context.Context, chunk []*iocEntry, star
 	//    dedup case (CLAUDE.md §3) and is also silent.
 	var raced int
 	for _, j := range jobs {
-		if _, rerr := j.iocJob.Results(); rerr != nil {
-			if j.wasNew && isAlreadyExists(rerr) {
-				raced++
-				continue
+		// iocJob is nil when we deliberately skipped the IoC write
+		// (existing doc + zero LastSeenAt). Refs still need draining.
+		if j.iocJob != nil {
+			if _, rerr := j.iocJob.Results(); rerr != nil {
+				if j.wasNew && isAlreadyExists(rerr) {
+					raced++
+					continue
+				}
+				return goerr.Wrap(rerr, "write ioc",
+					goerr.V("id", j.e.ioc.ID),
+					goerr.V("new", j.wasNew))
 			}
-			return goerr.Wrap(rerr, "write ioc",
-				goerr.V("id", j.e.ioc.ID),
-				goerr.V("new", j.wasNew))
 		}
 		for _, rj := range j.refJobs {
 			if _, rerr := rj.Results(); rerr != nil && !isAlreadyExists(rerr) {
