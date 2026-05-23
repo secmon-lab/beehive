@@ -28,9 +28,9 @@ func TestWithAndFrom_RoundTrip(t *testing.T) {
 	gt.Equal(t, logging.From(ctx), custom)
 }
 
-func TestBuild_JSONFormat(t *testing.T) {
+func TestNew_JSONFormat(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := logging.Build(buf, logging.Config{Level: slog.LevelInfo, Format: "json"})
+	logger := logging.New(buf, slog.LevelInfo, logging.FormatJSON, false)
 	logger.Info("hello", slog.String("k", "v"))
 
 	var got map[string]any
@@ -39,20 +39,53 @@ func TestBuild_JSONFormat(t *testing.T) {
 	gt.Value(t, got["k"]).Equal("v")
 }
 
-func TestBuild_TextFormatUsesClog(t *testing.T) {
+func TestNew_ConsoleFormatUsesClog(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := logging.Build(buf, logging.Config{Level: slog.LevelInfo, Format: "text"})
+	logger := logging.New(buf, slog.LevelInfo, logging.FormatConsole, false)
 	logger.Info("hello-clog")
-	// We don't assert the clog-specific layout, only that something
-	// recognisable was emitted.
 	gt.True(t, bytes.Contains(buf.Bytes(), []byte("hello-clog")))
 }
 
-func TestBuild_RespectsLevel(t *testing.T) {
+func TestNew_RespectsLevel(t *testing.T) {
 	buf := &bytes.Buffer{}
-	logger := logging.Build(buf, logging.Config{Level: slog.LevelError, Format: "json"})
+	logger := logging.New(buf, slog.LevelError, logging.FormatJSON, false)
 	logger.Info("filtered-out")
 	gt.Equal(t, buf.Len(), 0)
 	logger.Error("kept")
 	gt.True(t, bytes.Contains(buf.Bytes(), []byte("kept")))
+}
+
+func TestNew_AutoFallsBackToJSONForNonTTY(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := logging.New(buf, slog.LevelInfo, logging.FormatAuto, false)
+	logger.Info("auto-json", slog.String("k", "v"))
+
+	var got map[string]any
+	gt.NoError(t, json.Unmarshal(buf.Bytes(), &got))
+	gt.Value(t, got["msg"]).Equal("auto-json")
+	gt.Value(t, got["k"]).Equal("v")
+}
+
+func TestNew_JSONRedactsSecrets(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := logging.New(buf, slog.LevelInfo, logging.FormatJSON, false)
+	logger.Info("auth", slog.String("Authorization", "Bearer s3cret"))
+
+	var got map[string]any
+	gt.NoError(t, json.Unmarshal(buf.Bytes(), &got))
+	gt.Value(t, got["Authorization"]).NotEqual("Bearer s3cret")
+}
+
+func TestQuiet_Discards(t *testing.T) {
+	prev := logging.Default()
+	t.Cleanup(func() { logging.SetDefault(prev) })
+
+	logging.Quiet()
+	logging.Default().Error("nope")
+	// no assertion on output — sink is io.Discard. Just ensure no panic.
+}
+
+func TestErrAttr_AnyError(t *testing.T) {
+	attr := logging.ErrAttr(context.Canceled)
+	gt.Equal(t, attr.Key, "error")
 }

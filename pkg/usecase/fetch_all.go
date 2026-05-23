@@ -180,4 +180,3 @@ func overallStatus(run *model.Run) types.RunStatus {
 	}
 	return types.RunStatusFailed
 }
-
