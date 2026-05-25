@@ -112,7 +112,7 @@ func TestTriggerFetchAll_AsyncReturnsRunID(t *testing.T) {
 
 	resp, err := http.Post(ts.URL+"/api/v1/fetch?mode=async", "application/json", nil)
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	// Async path returns 202 Accepted immediately.
 	gt.Equal(t, resp.StatusCode, http.StatusAccepted)
 
@@ -145,7 +145,7 @@ func TestTriggerFetchAll_DedupesConcurrent(t *testing.T) {
 
 	resp, err := http.Post(ts.URL+"/api/v1/fetch?mode=async", "application/json", nil)
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusAccepted)
 
 	var body struct {
@@ -163,7 +163,7 @@ func TestListRuns_Empty(t *testing.T) {
 
 	resp, err := http.Get(ts.URL + "/api/v1/runs")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusOK)
 
 	var body map[string]any
@@ -196,7 +196,7 @@ func TestListRuns_OrdersByStartedAtDesc(t *testing.T) {
 
 	resp, err := http.Get(ts.URL + "/api/v1/runs")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusOK)
 
 	var body struct {
@@ -221,7 +221,7 @@ func TestIoCStats_EmptyCounterDoc(t *testing.T) {
 	// return the zero shape rather than a 5xx.
 	resp, err := http.Get(ts.URL + "/api/v1/iocs/stats")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusOK)
 
 	var body struct {
@@ -242,7 +242,7 @@ func TestListRuns_BadLimit(t *testing.T) {
 
 	resp, err := http.Get(ts.URL + "/api/v1/runs?limit=-1")
 	gt.NoError(t, err)
-	defer resp.Body.Close()
+	defer safe.Close(t.Context(), resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusBadRequest)
 }
 

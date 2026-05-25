@@ -68,5 +68,10 @@ test("runs page renders rows when the API returns runs", async ({ page }) => {
 
   await page.goto("/runs");
   await expect(page.locator("table.tbl tbody tr").first()).toBeVisible();
-  await expect(page.getByText(/manual/)).toBeVisible();
+  // Scope the "manual" assertion to the trigger badge — the page
+  // subtitle ("Each scheduled or manual call to …") would otherwise
+  // hit a Playwright strict-mode violation.
+  await expect(
+    page.locator("table.tbl tbody tr .badge").getByText("manual", { exact: true }),
+  ).toBeVisible();
 });
