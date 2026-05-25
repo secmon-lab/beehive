@@ -11,6 +11,7 @@ import (
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/utils/errutil"
+	"github.com/secmon-lab/beehive/pkg/utils/safe"
 )
 
 // Default HTTP defaults shared by all providers. Per-source knobs are
@@ -65,7 +66,7 @@ func (c *HTTPClient) Get(ctx context.Context, url string, headers map[string]str
 	if err != nil {
 		return nil, goerr.Wrap(err, "http get", goerr.V("url", url))
 	}
-	defer resp.Body.Close()
+	defer safe.Close(ctx, resp.Body)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Only treat 5xx (and 429) as retryable / "busy". 4xx is a

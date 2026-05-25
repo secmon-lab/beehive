@@ -147,6 +147,11 @@ Firestore writes cost more than reads. Treat every Update as suspect:
 ## 7. LLM (gollem) configuration
 
 - Env vars: `BEEHIVE_LLM_PROVIDER`, `BEEHIVE_LLM_MODEL`, `BEEHIVE_LLM_API_KEY`, `BEEHIVE_LLM_ARGS`.
+- Supported providers: `gemini` (Vertex AI Gemini via ADC) and `claude`. `claude` itself has **two mutually-exclusive auth paths**:
+  - Vertex AI: `BEEHIVE_LLM_ARGS=project_id=...,location=...` (e.g. `location=global`), no API key.
+  - Anthropic direct API: `BEEHIVE_LLM_API_KEY=...`, no `project_id`/`location` in ARGS.
+  Validate fails if both or neither are configured.
+- `BEEHIVE_LLM_MODEL` is **required** for every provider — never rely on gollem's provider-internal defaults. The Validate layer enforces this and `gollem_client.go` re-checks it.
 - `BEEHIVE_LLM_ARGS` is a comma-separated `key=value` list (e.g. for Vertex AI: `project_id=foo,location=us-central1`). Always use `project_id` (never bare `project`) for the GCP project key.
 - Only blog-kind sources invoke the LLM. Use gollem with a JSON-Schema-constrained response so `IoCSeed[]` parses cleanly.
 - After the LLM returns, normalize in Go: `netip.ParseAddr` for IPs, `idna.ToASCII` + lowercase for domains, `url.Parse` for URLs, length check for hashes.

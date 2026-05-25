@@ -9,6 +9,7 @@ import (
 
 	"github.com/m-mizutani/gt"
 	"github.com/secmon-lab/beehive/pkg/cli"
+	"github.com/secmon-lab/beehive/pkg/utils/safe"
 )
 
 // freeAddr returns an OS-assigned address we can hand to `serve` so the
@@ -59,7 +60,7 @@ func TestRun_ServeBootsAndServesHealth(t *testing.T) {
 		time.Sleep(25 * time.Millisecond)
 	}
 	gt.NoError(t, err).Required()
-	defer resp.Body.Close()
+	defer safe.Close(ctx, resp.Body)
 	gt.Equal(t, resp.StatusCode, http.StatusOK)
 
 	cancel()
