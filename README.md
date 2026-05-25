@@ -16,9 +16,19 @@ Pull-driven crawler that extracts IoCs (Indicators of Compromise) from security 
 cp examples/config.toml ./config.toml
 export BEEHIVE_FIRESTORE_PROJECT_ID=my-project
 export BEEHIVE_FIRESTORE_DATABASE=beehive
+# LLM — pick ONE of the supported auth paths. See docs/configuration.md.
+# Vertex AI Gemini (ADC):
 export BEEHIVE_LLM_PROVIDER=gemini
 export BEEHIVE_LLM_MODEL=gemini-2.5-pro
-export BEEHIVE_LLM_API_KEY=...
+export BEEHIVE_LLM_ARGS=project_id=my-project,location=us-central1
+# Or Vertex AI Claude (ADC):
+#   export BEEHIVE_LLM_PROVIDER=claude
+#   export BEEHIVE_LLM_MODEL=claude-sonnet-4@20250514
+#   export BEEHIVE_LLM_ARGS=project_id=my-project,location=global
+# Or Anthropic direct Claude (API key):
+#   export BEEHIVE_LLM_PROVIDER=claude
+#   export BEEHIVE_LLM_MODEL=claude-sonnet-4-5-20250929
+#   export BEEHIVE_LLM_API_KEY=sk-ant-...
 
 # 2. validate config (TOML + provider + env)
 go run . validate
