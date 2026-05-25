@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	"github.com/secmon-lab/beehive/pkg/utils/async"
 	"github.com/secmon-lab/beehive/pkg/utils/errutil"
+	"github.com/secmon-lab/beehive/pkg/utils/logging"
 )
 
 // LockHeartbeatInterval is exported for tests so they can override it
@@ -73,12 +76,29 @@ func (m *LockManager) Acquire(ctx context.Context, kind, targetID string) (inter
 			case <-ctx.Done():
 				return nil
 			case <-ticker.C:
-				if err := m.repo.RenewLock(ctx, lock); err != nil {
-					return goerr.Wrap(err, "renew lock",
-						goerr.V("kind", kind),
-						goerr.V("target_id", targetID),
-						goerr.T(errutil.TagBusy))
+				err := m.repo.RenewLock(ctx, lock)
+				if err == nil {
+					continue
 				}
+				// Losing the lock is a normal eventual-consistency
+				// outcome (another instance took over after a slow
+				// heartbeat). CLAUDE.md §6 explicitly accepts the
+				// redundant work; surface it as a warning so the
+				// operator sees it without paging anyone, and exit the
+				// heartbeat goroutine cleanly so async.Dispatch does
+				// not classify it as a hard error.
+				if errors.Is(err, interfaces.ErrLockLost) {
+					logging.From(ctx).LogAttrs(ctx, slog.LevelWarn,
+						"lock lost — another instance took over",
+						slog.String("kind", kind),
+						slog.String("target_id", targetID),
+					)
+					return nil
+				}
+				return goerr.Wrap(err, "renew lock",
+					goerr.V("kind", kind),
+					goerr.V("target_id", targetID),
+					goerr.T(errutil.TagBusy))
 			}
 		}
 	})

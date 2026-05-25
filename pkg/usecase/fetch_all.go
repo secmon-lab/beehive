@@ -25,22 +25,69 @@ var FetchAllConcurrency = 8
 // recorded with their reason so the operator can audit a quiet run.
 //
 // trigger is one of "api" / "manual" / "cli" and is stored on the Run.
-func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.SourceID) (*model.Run, error) {
+// FetchAllOption tunes the behaviour of FetchAll. The async-mode HTTP
+// handler uses WithRunID so the caller can pre-create the Run document
+// and return its id to the client before the work actually starts.
+type FetchAllOption func(*fetchAllOpts)
+
+type fetchAllOpts struct {
+	runID types.RunID
+}
+
+// WithRunID skips the automatic Run creation inside FetchAll and uses
+// the supplied id instead. The caller MUST have already created the
+// Run document in the repository (status=running, StartedAt set) so
+// that the rest of the pipeline can Update it.
+func WithRunID(runID types.RunID) FetchAllOption {
+	return func(o *fetchAllOpts) { o.runID = runID }
+}
+
+func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.SourceID, opts ...FetchAllOption) (*model.Run, error) {
 	if deps.Catalog == nil {
 		return nil, goerr.New("catalog not initialised")
 	}
 
-	run := &model.Run{
-		ID:        types.RunID("run-" + id.NewULID()),
-		Trigger:   trigger,
-		Status:    types.RunStatusRunning,
-		StartedAt: time.Now().UTC(),
+	o := &fetchAllOpts{}
+	for _, f := range opts {
+		f(o)
 	}
-	if deps.Repo != nil {
-		if err := deps.Repo.CreateRun(ctx, run); err != nil {
-			return nil, goerr.Wrap(err, "create run")
+
+	var run *model.Run
+	if o.runID != "" {
+		// Async-mode: the handler already created the Run document and
+		// returned its id to the client. Load it so subsequent updates
+		// reuse the same record (the alternative — a second CreateRun
+		// — would fail with AlreadyExists on memory and overwrite on
+		// Firestore).
+		if deps.Repo == nil {
+			return nil, goerr.New("WithRunID requires a repository")
+		}
+		existing, err := deps.Repo.GetRun(ctx, o.runID)
+		if err != nil {
+			return nil, goerr.Wrap(err, "load preallocated run",
+				goerr.V("run_id", o.runID))
+		}
+		run = existing
+	} else {
+		run = &model.Run{
+			ID:        types.RunID("run-" + id.NewULID()),
+			Trigger:   trigger,
+			Status:    types.RunStatusRunning,
+			StartedAt: time.Now().UTC(),
+		}
+		if deps.Repo != nil {
+			if err := deps.Repo.CreateRun(ctx, run); err != nil {
+				return nil, goerr.Wrap(err, "create run")
+			}
 		}
 	}
+
+	logger := logging.From(ctx)
+	logger.LogAttrs(ctx, slog.LevelInfo, "fetch all: start",
+		slog.String("run_id", string(run.ID)),
+		slog.String("trigger", trigger),
+		slog.Int("catalog_size", len(deps.Catalog.Sources)),
+	)
 
 	now := time.Now().UTC()
 	var mu sync.Mutex
@@ -95,7 +142,7 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 
 		g.Go(func() error {
 			logger := logging.From(gctx)
-			logger.LogAttrs(gctx, slog.LevelInfo, "source: start",
+			logger.LogAttrs(gctx, slog.LevelDebug, "source: start",
 				slog.String("source_id", string(src.ID)),
 				slog.String("kind", string(src.Kind)),
 				slog.String("type", src.Type),
@@ -115,7 +162,7 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 			if rs == nil {
 				return nil
 			}
-			logger.LogAttrs(gctx, slog.LevelInfo, "source: end",
+			logger.LogAttrs(gctx, slog.LevelDebug, "source: end",
 				slog.String("source_id", string(src.ID)),
 				slog.String("status", string(rs.Status)),
 				slog.Int("ioc_count", rs.IoCCount),
@@ -152,7 +199,24 @@ func FetchAll(ctx context.Context, deps Deps, trigger string, forceSource types.
 			errutil.Handle(ctx, goerr.Wrap(err, "update run",
 				goerr.V("run_id", run.ID)))
 		}
+		// Refresh the per-type IoC counters so the operator UI sees an
+		// up-to-date stats strip on the next page view. Best-effort: a
+		// counter refresh failure must not roll back the fetch (the
+		// counts will be reconciled on the next successful run).
+		if _, err := RefreshIoCCounts(ctx, deps.Repo); err != nil {
+			errutil.Handle(ctx, goerr.Wrap(err, "refresh ioc counts",
+				goerr.V("run_id", run.ID)))
+		}
 	}
+	logger.LogAttrs(ctx, slog.LevelInfo, "fetch all: end",
+		slog.String("run_id", string(run.ID)),
+		slog.String("status", string(run.Status)),
+		slog.Int("total", run.Total),
+		slog.Int("triggered", run.Triggered),
+		slog.Int("skipped", run.Skipped),
+		slog.Int("failed", run.Failed),
+		slog.Duration("elapsed", run.FinishedAt.Sub(run.StartedAt)),
+	)
 	return run, nil
 }
 

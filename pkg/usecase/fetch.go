@@ -30,6 +30,14 @@ func FetchSource(ctx context.Context, deps Deps, src *model.Source, runID types.
 		StartedAt:  time.Now().UTC(),
 	}
 
+	// Persist the per-source state on every terminal outcome (success
+	// AND failure). Skipping this on the failure path left the Sources
+	// page stuck at "—" even when the run was clearly broken, and made
+	// the Failing tile lie about the real situation.
+	defer func() {
+		persistSourceState(ctx, deps, src, runID, rs)
+	}()
+
 	// Acquire per-source lock.
 	lock, err := deps.Lock.Acquire(ctx, model.LockKindFetch, string(src.ID))
 	if err != nil {
@@ -73,26 +81,40 @@ func FetchSource(ctx context.Context, deps Deps, src *model.Source, runID types.
 	rs.Status = types.RunStatusSuccess
 	rs.FinishedAt = time.Now().UTC()
 
-	if deps.Repo != nil {
-		state := &model.SourceState{
-			ID:            src.ID,
-			LastFetchedAt: rs.FinishedAt,
-			LastStatus:    rs.Status,
-			LastRunID:     runID,
-			TotalIoCCount: rs.IoCCount,
-			UpdatedAt:     rs.FinishedAt,
-		}
-		if cur, err := deps.Repo.GetSourceState(ctx, src.ID); err == nil && cur != nil {
-			state.EnabledOverride = cur.EnabledOverride
-			state.TotalIoCCount = cur.TotalIoCCount + rs.IoCCount
-		}
-		if err := deps.Repo.UpdateSourceState(ctx, state); err != nil {
-			errutil.Handle(ctx, goerr.Wrap(err, "update source state",
-				goerr.V("source_id", src.ID)))
-		}
-	}
 	_ = force // currently unused; reserved for future "force re-extract" paths
 	return rs, nil
+}
+
+// persistSourceState writes the per-source state document for every
+// terminal outcome that warrants UI visibility. Skipped runs leave the
+// state untouched so transient "lock busy" / "not due" outcomes don't
+// overwrite the last real status.
+func persistSourceState(ctx context.Context, deps Deps, src *model.Source, runID types.RunID, rs *model.RunSource) {
+	if deps.Repo == nil {
+		return
+	}
+	if rs.Status != types.RunStatusSuccess && rs.Status != types.RunStatusFailed {
+		return
+	}
+	state := &model.SourceState{
+		ID:            src.ID,
+		LastFetchedAt: rs.FinishedAt,
+		LastStatus:    rs.Status,
+		LastRunID:     runID,
+		LastError:     rs.ErrorMessage,
+		UpdatedAt:     rs.FinishedAt,
+	}
+	if cur, err := deps.Repo.GetSourceState(ctx, src.ID); err == nil && cur != nil {
+		state.EnabledOverride = cur.EnabledOverride
+		state.TotalIoCCount = cur.TotalIoCCount
+	}
+	if rs.Status == types.RunStatusSuccess {
+		state.TotalIoCCount += rs.IoCCount
+	}
+	if err := deps.Repo.UpdateSourceState(ctx, state); err != nil {
+		errutil.Handle(ctx, goerr.Wrap(err, "update source state",
+			goerr.V("source_id", src.ID)))
+	}
 }
 
 // failedRunSource marks rs as failed AND surfaces the full structured
@@ -124,7 +146,7 @@ func fetchBlog(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 			goerr.V("source_id", src.ID),
 			goerr.T(errutil.TagInvalidInput))
 	}
-	logger.LogAttrs(ctx, slog.LevelInfo, "blog: fetching feed",
+	logger.LogAttrs(ctx, slog.LevelDebug, "blog: fetching feed",
 		slog.String("source_id", string(src.ID)),
 		slog.String("url", src.URL),
 	)
@@ -134,7 +156,7 @@ func fetchBlog(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 		return err
 	}
 	rs.ArticleCount = len(articles)
-	logger.LogAttrs(ctx, slog.LevelInfo, "blog: feed fetched",
+	logger.LogAttrs(ctx, slog.LevelDebug, "blog: feed fetched",
 		slog.String("source_id", string(src.ID)),
 		slog.Int("articles", len(articles)),
 		slog.Duration("elapsed", time.Since(feedStart)),
@@ -178,7 +200,7 @@ func fetchBlog(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 				return goerr.Wrap(err, "update article", goerr.V("url", a.URL))
 			}
 		}
-		logger.LogAttrs(ctx, slog.LevelInfo, "blog: extracting article",
+		logger.LogAttrs(ctx, slog.LevelDebug, "blog: extracting article",
 			slog.String("source_id", string(src.ID)),
 			slog.Int("index", i+1),
 			slog.Int("total", len(articles)),
@@ -200,7 +222,7 @@ func fetchBlog(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 			)
 			return goerr.Wrap(err, "llm extract", goerr.V("url", a.URL))
 		}
-		logger.LogAttrs(ctx, slog.LevelInfo, "blog: article extracted",
+		logger.LogAttrs(ctx, slog.LevelDebug, "blog: article extracted",
 			slog.String("url", a.URL),
 			slog.Int("seeds", len(seeds)),
 			slog.Duration("elapsed", time.Since(extractStart)),
@@ -222,7 +244,7 @@ func fetchBlog(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 
 func fetchFeed(ctx context.Context, deps Deps, src *model.Source, runID types.RunID, prov interfaces.FeedProvider, rs *model.RunSource) error {
 	logger := logging.From(ctx)
-	logger.LogAttrs(ctx, slog.LevelInfo, "feed: fetching",
+	logger.LogAttrs(ctx, slog.LevelDebug, "feed: fetching",
 		slog.String("source_id", string(src.ID)),
 	)
 	feedStart := time.Now()
@@ -230,7 +252,7 @@ func fetchFeed(ctx context.Context, deps Deps, src *model.Source, runID types.Ru
 	if err != nil {
 		return err
 	}
-	logger.LogAttrs(ctx, slog.LevelInfo, "feed: fetched",
+	logger.LogAttrs(ctx, slog.LevelDebug, "feed: fetched",
 		slog.String("source_id", string(src.ID)),
 		slog.Int("seeds", len(seeds)),
 		slog.Duration("elapsed", time.Since(feedStart)),
@@ -310,7 +332,7 @@ func bulkPersistSeeds(ctx context.Context, deps Deps, src *model.Source, runID t
 		}
 		pairs = append(pairs, model.IoCWithRef{IoC: ioc, Ref: ref})
 	}
-	logger.LogAttrs(ctx, slog.LevelInfo, "feed: persist start",
+	logger.LogAttrs(ctx, slog.LevelDebug, "feed: persist start",
 		slog.String("source_id", string(src.ID)),
 		slog.Int("input_seeds", len(seeds)),
 		slog.Int("distinct_iocs", len(pairs)),
@@ -329,7 +351,7 @@ func bulkPersistSeeds(ctx context.Context, deps Deps, src *model.Source, runID t
 			goerr.V("source_id", src.ID),
 			goerr.V("distinct_iocs", len(pairs)))
 	}
-	logger.LogAttrs(ctx, slog.LevelInfo, "feed: persist end",
+	logger.LogAttrs(ctx, slog.LevelDebug, "feed: persist end",
 		slog.String("source_id", string(src.ID)),
 		slog.Int("persisted", persisted),
 		slog.Duration("elapsed", elapsed),

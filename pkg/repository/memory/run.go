@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"slices"
+	"sort"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
@@ -62,4 +63,23 @@ func (m *Memory) AppendRunSource(_ context.Context, runID types.RunID, src *mode
 		run.SourceIDs = append(run.SourceIDs, src.SourceID)
 	}
 	return nil
+}
+
+func (m *Memory) ListRecentRuns(_ context.Context, limit int) ([]*model.Run, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*model.Run, 0, len(m.runs))
+	for _, r := range m.runs {
+		out = append(out, cloneRun(r))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].StartedAt.After(out[j].StartedAt)
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
 }

@@ -366,6 +366,204 @@ func TestIoCBulkUpsertMixed(t *testing.T) {
 	})
 }
 
+func TestCountIoCsOfType(t *testing.T) {
+	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
+		ctx := context.Background()
+
+		// Baseline counts (Firestore DB may be shared with prior test
+		// runs, so we record the existing tally and assert on deltas).
+		baselineDomain, err := repo.CountIoCsOfType(ctx, types.IoCTypeDomain)
+		gt.NoError(t, err).Required()
+		baselineURL, err := repo.CountIoCsOfType(ctx, types.IoCTypeURL)
+		gt.NoError(t, err).Required()
+		baselineIPv4, err := repo.CountIoCsOfType(ctx, types.IoCTypeIPv4)
+		gt.NoError(t, err).Required()
+
+		seedSuffix := id.NewULID()
+		seed := func(typ types.IoCType, n int) {
+			for i := 0; i < n; i++ {
+				value := seedSuffix + "-" + string(typ) + "-" + id.NewULID()
+				gt.NoError(t, repo.UpsertIoCWithRef(ctx, &model.IoC{
+					ID:          model.ComputeIoCID(typ, value),
+					Type:        typ,
+					Value:       value,
+					Raw:         value,
+					FirstSeenAt: time.Now().UTC(),
+					LastSeenAt:  time.Now().UTC(),
+				}, nil)).Required()
+			}
+		}
+		seed(types.IoCTypeDomain, 3)
+		seed(types.IoCTypeURL, 2)
+		seed(types.IoCTypeIPv4, 1)
+
+		gotDomain, err := repo.CountIoCsOfType(ctx, types.IoCTypeDomain)
+		gt.NoError(t, err).Required()
+		gotURL, err := repo.CountIoCsOfType(ctx, types.IoCTypeURL)
+		gt.NoError(t, err).Required()
+		gotIPv4, err := repo.CountIoCsOfType(ctx, types.IoCTypeIPv4)
+		gt.NoError(t, err).Required()
+
+		gt.Equal(t, gotDomain-baselineDomain, int64(3))
+		gt.Equal(t, gotURL-baselineURL, int64(2))
+		gt.Equal(t, gotIPv4-baselineIPv4, int64(1))
+	})
+}
+
+func TestListRecentIoCsAfter(t *testing.T) {
+	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
+		ctx := context.Background()
+
+		// Seed five IoCs with strictly increasing LastSeenAt so the
+		// cursor traversal has a deterministic order even when the
+		// Firestore DB is shared with prior runs.
+		seedSuffix := id.NewULID()
+		base := time.Now().UTC()
+		seeded := make([]*model.IoC, 0, 5)
+		for i := 0; i < 5; i++ {
+			value := seedSuffix + "-cursor-" + id.NewULID()
+			ioc := &model.IoC{
+				ID:          model.ComputeIoCID(types.IoCTypeDomain, value),
+				Type:        types.IoCTypeDomain,
+				Value:       value,
+				Raw:         value,
+				FirstSeenAt: base,
+				LastSeenAt:  base.Add(time.Duration(i+1) * time.Second),
+			}
+			gt.NoError(t, repo.UpsertIoCWithRef(ctx, ioc, nil)).Required()
+			seeded = append(seeded, ioc)
+		}
+
+		// Cursor sits strictly newer than any seeded entry so the
+		// shared Firestore DB cannot leak unrelated rows in.
+		afterFirstPage := &model.IoCListCursor{
+			LastSeenAt: base.Add(time.Duration(len(seeded)+1) * time.Second),
+			// Empty ID is fine here — Firestore string compare puts
+			// "" before any real ID, so the boundary still excludes
+			// everything strictly newer than LastSeenAt.
+		}
+
+		page1, err := repo.ListRecentIoCsAfter(ctx, 2, afterFirstPage)
+		gt.NoError(t, err).Required()
+		gt.A(t, page1).Length(2)
+		gt.Equal(t, page1[0].ID, seeded[4].ID)
+		gt.Equal(t, page1[1].ID, seeded[3].ID)
+
+		page2, err := repo.ListRecentIoCsAfter(ctx, 2, &model.IoCListCursor{
+			LastSeenAt: page1[1].LastSeenAt,
+			ID:         page1[1].ID,
+		})
+		gt.NoError(t, err).Required()
+		gt.A(t, page2).Length(2)
+		gt.Equal(t, page2[0].ID, seeded[2].ID)
+		gt.Equal(t, page2[1].ID, seeded[1].ID)
+	})
+}
+
+// TestListRecentIoCsAfter_SameTimestampBoundary covers the bug Gemini
+// flagged: a bulk-persisted batch shares a single LastSeenAt, so a
+// LastSeenAt-only cursor would silently drop every same-timestamp
+// document past the page break. The composite (LastSeenAt, ID) cursor
+// MUST surface every row in two consecutive pages.
+func TestListRecentIoCsAfter_SameTimestampBoundary(t *testing.T) {
+	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
+		ctx := context.Background()
+
+		seedSuffix := id.NewULID()
+		stamp := time.Now().UTC()
+		// Seed four IoCs that share the same LastSeenAt — mirrors a
+		// single feed-fetch batch.
+		seeded := make([]*model.IoC, 0, 4)
+		for i := 0; i < 4; i++ {
+			value := seedSuffix + "-batch-" + id.NewULID()
+			ioc := &model.IoC{
+				ID:          model.ComputeIoCID(types.IoCTypeIPv4, value),
+				Type:        types.IoCTypeIPv4,
+				Value:       value,
+				Raw:         value,
+				FirstSeenAt: stamp,
+				LastSeenAt:  stamp,
+			}
+			gt.NoError(t, repo.UpsertIoCWithRef(ctx, ioc, nil)).Required()
+			seeded = append(seeded, ioc)
+		}
+
+		// Filter helper to drop any unrelated rows the shared
+		// Firestore DB may carry.
+		ours := map[types.IoCID]bool{}
+		for _, i := range seeded {
+			ours[i.ID] = true
+		}
+		filter := func(in []*model.IoC) []*model.IoC {
+			out := make([]*model.IoC, 0, len(in))
+			for _, i := range in {
+				if ours[i.ID] {
+					out = append(out, i)
+				}
+			}
+			return out
+		}
+
+		// Walk the four entries in two pages of 2. The same-timestamp
+		// items must all surface across the boundary.
+		page1, err := repo.ListRecentIoCsAfter(ctx, 2, &model.IoCListCursor{
+			LastSeenAt: stamp.Add(time.Second), // strictly newer than our batch
+		})
+		gt.NoError(t, err).Required()
+		got1 := filter(page1)
+		gt.A(t, got1).Length(2)
+
+		page2, err := repo.ListRecentIoCsAfter(ctx, 2, &model.IoCListCursor{
+			LastSeenAt: got1[len(got1)-1].LastSeenAt,
+			ID:         got1[len(got1)-1].ID,
+		})
+		gt.NoError(t, err).Required()
+		got2 := filter(page2)
+
+		seen := map[types.IoCID]bool{}
+		for _, i := range append(append([]*model.IoC{}, got1...), got2...) {
+			seen[i.ID] = true
+		}
+		// All four batched entries must show up across the two pages.
+		for _, want := range seeded {
+			gt.True(t, seen[want.ID])
+		}
+	})
+}
+
+func TestIoCCountsRoundTrip(t *testing.T) {
+	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
+		ctx := context.Background()
+
+		// Fresh repo always reports the zero shape (every type set to 0).
+		zero, err := repo.GetIoCCounts(ctx)
+		gt.NoError(t, err).Required()
+		for _, typ := range types.AllIoCTypes() {
+			_, ok := zero.ByType[typ]
+			gt.True(t, ok)
+		}
+
+		// Write and read back.
+		counts := &model.IoCCounts{
+			ByType: map[types.IoCType]int64{
+				types.IoCTypeDomain: 42,
+				types.IoCTypeURL:    7,
+			},
+			Total:     49,
+			UpdatedAt: time.Now().UTC(),
+		}
+		gt.NoError(t, repo.SaveIoCCounts(ctx, counts)).Required()
+
+		got, err := repo.GetIoCCounts(ctx)
+		gt.NoError(t, err).Required()
+		gt.Equal(t, got.ByType[types.IoCTypeDomain], int64(42))
+		gt.Equal(t, got.ByType[types.IoCTypeURL], int64(7))
+		gt.Equal(t, got.Total, int64(49))
+		// Timestamp survived the round trip within Firestore resolution.
+		gt.True(t, got.UpdatedAt.Sub(counts.UpdatedAt).Abs() < time.Second)
+	})
+}
+
 func TestRun(t *testing.T) {
 	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
 		ctx := context.Background()
@@ -390,6 +588,62 @@ func TestRun(t *testing.T) {
 		gt.A(t, got.Sources).Length(1)
 		gt.A(t, got.SourceIDs).Length(1)
 		gt.Equal(t, got.SourceIDs[0], sid)
+	})
+}
+
+func TestListRecentRuns(t *testing.T) {
+	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
+		ctx := context.Background()
+
+		// Insert three runs with deliberately out-of-order StartedAt so
+		// we can confirm the list is sorted DESC.
+		now := time.Now().UTC()
+		runs := []*model.Run{
+			{
+				ID:        types.RunID("run-" + id.NewULID()),
+				Trigger:   "scheduler",
+				Status:    types.RunStatusSuccess,
+				StartedAt: now.Add(-2 * time.Hour),
+			},
+			{
+				ID:        types.RunID("run-" + id.NewULID()),
+				Trigger:   "scheduler",
+				Status:    types.RunStatusSuccess,
+				StartedAt: now,
+			},
+			{
+				ID:        types.RunID("run-" + id.NewULID()),
+				Trigger:   "scheduler",
+				Status:    types.RunStatusSuccess,
+				StartedAt: now.Add(-time.Hour),
+			},
+		}
+		for _, r := range runs {
+			gt.NoError(t, repo.CreateRun(ctx, r)).Required()
+		}
+
+		got, err := repo.ListRecentRuns(ctx, 100)
+		gt.NoError(t, err).Required()
+		// The same backend may be shared between tests (Firestore), so
+		// we filter down to the IDs we just inserted before asserting
+		// order.
+		want := map[types.RunID]bool{runs[0].ID: true, runs[1].ID: true, runs[2].ID: true}
+		filtered := make([]*model.Run, 0, len(want))
+		for _, r := range got {
+			if want[r.ID] {
+				filtered = append(filtered, r)
+			}
+		}
+		gt.A(t, filtered).Length(3)
+		// Newest first: runs[1] (now), runs[2] (-1h), runs[0] (-2h).
+		gt.Equal(t, filtered[0].ID, runs[1].ID)
+		gt.Equal(t, filtered[1].ID, runs[2].ID)
+		gt.Equal(t, filtered[2].ID, runs[0].ID)
+
+		// limit clamp
+		clamped, err := repo.ListRecentRuns(ctx, 0)
+		gt.NoError(t, err)
+		gt.A(t, clamped).Length(0)
 	})
 }
 

@@ -103,21 +103,54 @@ paths:
   /api/v1/fetch:
     post:
       operationId: triggerFetchAll
-      summary: Fetch every due source synchronously
+      summary: Fetch every due source (sync by default, ?mode=async for fire-and-poll)
+      description: |
+        Default behaviour (Cloud Scheduler entry path) runs the fetch
+        synchronously and returns a RunSummary on completion. Pass
+        `?mode=async` to return a runId immediately and run the fetch
+        in a detached goroutine; clients then poll `/api/v1/runs/{id}`
+        until Status leaves "running".
+
+        If a Run is already in progress when the endpoint is called,
+        the existing runId is returned with `inProgress: true` and no
+        new Run is created (best-effort dedupe).
       tags: [sources]
+      parameters:
+        - in: query
+          name: mode
+          required: false
+          schema:
+            type: string
+            enum: [sync, async]
+            default: sync
       responses:
         "200":
-          description: OK
+          description: OK — synchronous completion
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/RunSummary"
+        "202":
+          description: Accepted — async mode, or an existing Run is still in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsyncFetchResponse"
 
   /api/v1/runs:
     get:
       operationId: listRuns
-      summary: Recent run history (in-process, may be empty before any fetch)
+      summary: Recent run history (StartedAt DESC, capped at 200)
       tags: [runs]
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
       responses:
         "200":
           description: OK
@@ -125,6 +158,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RunListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
 
   /api/v1/runs/{id}:
     get:
@@ -149,11 +184,15 @@ paths:
   /api/v1/iocs:
     get:
       operationId: listRecentIoCs
-      summary: List recent IoCs (LastSeenAt desc)
+      summary: List recent IoCs (LastSeenAt desc, paged via cursor)
       description: |
-        Returns the most recently observed IoCs for the operator UI.
-        Bulk analytics still belong in BigQuery — this endpoint caps
-        the result count and exposes no pagination cursor.
+        Returns recently observed IoCs for the operator UI in pages of
+        up to `limit`. The cursor is the (lastSeenAt, id) pair returned
+        as `nextCursor` from the previous page — both fields MUST be
+        echoed back as `?after=&afterId=` on the next call. Feed-kind
+        sources persist whole batches with the same LastSeenAt, so a
+        timestamp-only cursor would silently drop the rest of the
+        same-timestamp batch.
       tags: [iocs]
       parameters:
         - in: query
@@ -164,21 +203,46 @@ paths:
             minimum: 1
             maximum: 500
             default: 100
+        - in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: LastSeenAt component of the cursor. Required together with `afterId`.
+        - in: query
+          name: afterId
+          required: false
+          schema: {type: string}
+          description: IoC ID component of the cursor. Required together with `after`.
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                type: object
-                required: [iocs]
-                properties:
-                  iocs:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/IoC"
+                $ref: "#/components/schemas/IoCListResponse"
         "400":
           $ref: "#/components/responses/InvalidInput"
+
+  /api/v1/iocs/stats:
+    get:
+      operationId: getIoCStats
+      summary: Per-type IoC counts (Firestore aggregation count)
+      description: |
+        Returns the document count grouped by IoC type. Backed by
+        Firestore `count()` aggregation queries (one per type, each
+        riding the single-field `Type` index) so it does NOT scan the
+        whole collection. Callers SHOULD cache the result aggressively
+        (the UI uses a 5-minute staleTime).
+      tags: [iocs]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IoCStatsResponse"
 
   /api/v1/iocs/lookup:
     get:
@@ -350,3 +414,39 @@ components:
         raw: {type: string}
         firstSeenAt: {type: string, format: date-time}
         lastSeenAt: {type: string, format: date-time}
+
+    AsyncFetchResponse:
+      type: object
+      required: [runId]
+      properties:
+        runId: {type: string}
+        mode: {type: string, enum: [sync, async]}
+        inProgress:
+          type: boolean
+          description: True when the runId points at a pre-existing Run that was still in progress
+          default: false
+
+    IoCListCursor:
+      type: object
+      required: [lastSeenAt, id]
+      properties:
+        lastSeenAt: {type: string, format: date-time}
+        id: {type: string}
+
+    IoCListResponse:
+      type: object
+      required: [iocs]
+      properties:
+        iocs:
+          type: array
+          items: {$ref: "#/components/schemas/IoC"}
+        nextCursor: {$ref: "#/components/schemas/IoCListCursor"}
+
+    IoCStatsResponse:
+      type: object
+      required: [total, byType]
+      properties:
+        total: {type: integer, format: int64}
+        byType:
+          type: object
+          additionalProperties: {type: integer, format: int64}

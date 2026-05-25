@@ -36,6 +36,7 @@ bin/
 dist/
 
 # Frontend
+.pnpm-store/
 frontend/node_modules/
 frontend/dist/*
 # Keep the placeholder so `//go:embed all:dist` compiles before `pnpm build`.
