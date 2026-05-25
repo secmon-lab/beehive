@@ -29,6 +29,72 @@ func TestLLM_ArgsMap_RejectsInvalidEntry(t *testing.T) {
 	gt.Error(t, err)
 }
 
+func TestLLM_Validate_Gemini_OK(t *testing.T) {
+	c := config.LLM{
+		Provider: "gemini",
+		Model:    "gemini-2.5-pro",
+		Args:     "project_id=p,location=global",
+	}
+	gt.NoError(t, c.Validate())
+}
+
+func TestLLM_Validate_RequiresModel(t *testing.T) {
+	// Model must be explicit for every supported provider — no fallback
+	// to provider-internal defaults.
+	for _, c := range []config.LLM{
+		{Provider: "gemini", Args: "project_id=p,location=global"},
+		{Provider: "claude", Args: "project_id=p,location=global"},
+		{Provider: "claude", APIKey: "sk-test"},
+	} {
+		gt.Error(t, c.Validate())
+	}
+}
+
+func TestLLM_Validate_Claude_Vertex_OK(t *testing.T) {
+	c := config.LLM{
+		Provider: "claude",
+		Model:    "claude-sonnet-4@20250514",
+		Args:     "project_id=p,location=global",
+	}
+	gt.NoError(t, c.Validate())
+}
+
+func TestLLM_Validate_Claude_APIKey_OK(t *testing.T) {
+	c := config.LLM{
+		Provider: "claude",
+		Model:    "claude-sonnet-4-5-20250929",
+		APIKey:   "sk-test",
+	}
+	gt.NoError(t, c.Validate())
+}
+
+func TestLLM_Validate_Claude_BothPaths_Conflict(t *testing.T) {
+	c := config.LLM{
+		Provider: "claude",
+		Model:    "claude-sonnet-4@20250514",
+		Args:     "project_id=p,location=global",
+		APIKey:   "sk-test",
+	}
+	gt.Error(t, c.Validate())
+}
+
+func TestLLM_Validate_Claude_NeitherPath(t *testing.T) {
+	c := config.LLM{
+		Provider: "claude",
+		Model:    "claude-sonnet-4-5-20250929",
+	}
+	gt.Error(t, c.Validate())
+}
+
+func TestLLM_Validate_RejectsUnsupportedProvider(t *testing.T) {
+	c := config.LLM{
+		Provider: "openai",
+		Model:    "gpt-4o",
+		APIKey:   "sk-test",
+	}
+	gt.Error(t, c.Validate())
+}
+
 func TestFirestore_Validate_OnlyAppliesWhenBackendIsFirestore(t *testing.T) {
 	c := config.Firestore{}
 	gt.NoError(t, c.Validate("memory"))

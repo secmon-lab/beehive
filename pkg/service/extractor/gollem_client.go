@@ -19,6 +19,7 @@ import (
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/gollem"
+	"github.com/m-mizutani/gollem/llm/claude"
 	"github.com/m-mizutani/gollem/llm/gemini"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/utils/errutil"
@@ -28,11 +29,21 @@ import (
 // Mirrors cli/config.LLM but kept independent so the extractor package
 // does not depend on the CLI layer.
 type LLMConfig struct {
-	Provider string            // "gemini" | "openai" | "claude"
-	Model    string            // model id (e.g. "gemini-1.5-pro-002")
-	APIKey   string            // API key for openai / claude (Vertex AI on gemini uses ADC; key is optional)
-	Args     map[string]string // provider-specific extras (e.g. project_id, location)
+	Provider string            // "gemini" | "claude"
+	Model    string            // model id, REQUIRED — Validate forbids empty.
+	APIKey   string            // API key for claude (Anthropic direct API). Empty when using Vertex AI.
+	Args     map[string]string // provider-specific extras: project_id, location.
 }
+
+// claudeAuthMode tells the lazy builder which gollem constructor to call
+// for provider="claude". Decided once in NewLLMClient from the
+// (Args, APIKey) combination so ensureInner stays mechanical.
+type claudeAuthMode int
+
+const (
+	claudeAuthVertex claudeAuthMode = iota + 1
+	claudeAuthAPIKey
+)
 
 // NewLLMClient builds an interfaces.LLMClient (the narrow shape the
 // extractor consumes) from cfg.
@@ -43,9 +54,15 @@ type LLMConfig struct {
 // vars but no live ADC credentials (CI, validate-only invocations,
 // tests of the HTTP boot path) — they must not hard-fail at startup.
 //
-// MVP supports gemini only — additional providers can be added to the
-// switch here as the wiring layer matures.
+// Supported providers: gemini (Vertex AI Gemini, ADC), claude (Vertex AI
+// Claude via ADC, or Anthropic direct API via API key).
 func NewLLMClient(_ context.Context, cfg LLMConfig) (interfaces.LLMClient, error) {
+	if cfg.Model == "" {
+		return nil, goerr.New("BEEHIVE_LLM_MODEL is required (caller must not rely on provider-internal defaults)",
+			goerr.V("provider", cfg.Provider),
+			goerr.T(errutil.TagInvalidInput))
+	}
+
 	switch cfg.Provider {
 	case "gemini":
 		if cfg.Args["project_id"] == "" || cfg.Args["location"] == "" {
@@ -55,9 +72,37 @@ func NewLLMClient(_ context.Context, cfg LLMConfig) (interfaces.LLMClient, error
 		}
 		return &gollemClient{cfg: cfg}, nil
 
+	case "claude":
+		mode, err := decideClaudeAuthMode(cfg)
+		if err != nil {
+			return nil, err
+		}
+		return &gollemClient{cfg: cfg, claudeAuth: mode}, nil
+
 	default:
-		return nil, goerr.New("unsupported BEEHIVE_LLM_PROVIDER (only \"gemini\" is wired)",
+		return nil, goerr.New("unsupported BEEHIVE_LLM_PROVIDER (only gemini / claude)",
 			goerr.V("provider", cfg.Provider),
+			goerr.T(errutil.TagInvalidInput))
+	}
+}
+
+// decideClaudeAuthMode inspects (Args, APIKey) and selects the auth
+// path. Returns TagInvalidInput when both or neither are configured —
+// we refuse to guess.
+func decideClaudeAuthMode(cfg LLMConfig) (claudeAuthMode, error) {
+	hasVertex := cfg.Args["project_id"] != "" && cfg.Args["location"] != ""
+	hasAPIKey := cfg.APIKey != ""
+
+	switch {
+	case hasVertex && hasAPIKey:
+		return 0, goerr.New("claude: BEEHIVE_LLM_ARGS=project_id/location and BEEHIVE_LLM_API_KEY are mutually exclusive — pick one auth path",
+			goerr.T(errutil.TagInvalidInput))
+	case hasVertex:
+		return claudeAuthVertex, nil
+	case hasAPIKey:
+		return claudeAuthAPIKey, nil
+	default:
+		return 0, goerr.New("claude requires either BEEHIVE_LLM_ARGS=project_id=...,location=... (Vertex AI via ADC) or BEEHIVE_LLM_API_KEY (Anthropic direct API)",
 			goerr.T(errutil.TagInvalidInput))
 	}
 }
@@ -67,7 +112,8 @@ func NewLLMClient(_ context.Context, cfg LLMConfig) (interfaces.LLMClient, error
 // the first GenerateJSON call, behind a sync.Once. Subsequent calls
 // reuse the cached client (or its sticky init error).
 type gollemClient struct {
-	cfg LLMConfig
+	cfg        LLMConfig
+	claudeAuth claudeAuthMode // only meaningful when cfg.Provider == "claude"
 
 	once    sync.Once
 	inner   gollem.LLMClient
@@ -78,18 +124,51 @@ func (g *gollemClient) ensureInner(ctx context.Context) (gollem.LLMClient, error
 	g.once.Do(func() {
 		switch g.cfg.Provider {
 		case "gemini":
-			opts := []gemini.Option{}
-			if g.cfg.Model != "" {
-				opts = append(opts, gemini.WithModel(g.cfg.Model))
-			}
-			client, err := gemini.New(ctx, g.cfg.Args["project_id"], g.cfg.Args["location"], opts...)
+			client, err := gemini.New(ctx,
+				g.cfg.Args["project_id"], g.cfg.Args["location"],
+				gemini.WithModel(g.cfg.Model),
+			)
 			if err != nil {
 				g.initErr = goerr.Wrap(err, "build gemini client",
 					goerr.V("project_id", g.cfg.Args["project_id"]),
-					goerr.V("location", g.cfg.Args["location"]))
+					goerr.V("location", g.cfg.Args["location"]),
+					goerr.V("model", g.cfg.Model))
 				return
 			}
 			g.inner = client
+
+		case "claude":
+			switch g.claudeAuth {
+			case claudeAuthVertex:
+				client, err := claude.NewWithVertex(ctx,
+					g.cfg.Args["location"], g.cfg.Args["project_id"],
+					claude.WithVertexModel(g.cfg.Model),
+				)
+				if err != nil {
+					g.initErr = goerr.Wrap(err, "build claude vertex client",
+						goerr.V("project_id", g.cfg.Args["project_id"]),
+						goerr.V("location", g.cfg.Args["location"]),
+						goerr.V("model", g.cfg.Model))
+					return
+				}
+				g.inner = client
+			case claudeAuthAPIKey:
+				client, err := claude.New(ctx, g.cfg.APIKey,
+					claude.WithModel(g.cfg.Model),
+				)
+				if err != nil {
+					// API key value intentionally NOT logged.
+					g.initErr = goerr.Wrap(err, "build claude api-key client",
+						goerr.V("model", g.cfg.Model))
+					return
+				}
+				g.inner = client
+			default:
+				g.initErr = goerr.New("claude: auth mode not decided (programming error)",
+					goerr.V("mode", g.claudeAuth),
+					goerr.T(errutil.TagInvalidInput))
+			}
+
 		default:
 			g.initErr = goerr.New("unsupported BEEHIVE_LLM_PROVIDER",
 				goerr.V("provider", g.cfg.Provider),

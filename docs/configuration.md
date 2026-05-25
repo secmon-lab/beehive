@@ -35,10 +35,18 @@ There is no built-in authentication. Front the service with an authenticator (Cl
 
 | Variable                | Default   | Notes                                                                         |
 |-------------------------|-----------|-------------------------------------------------------------------------------|
-| `BEEHIVE_LLM_PROVIDER`  | `gemini`  | `gemini`, `vertex`, `claude`, `openai`, etc.                                  |
-| `BEEHIVE_LLM_MODEL`     | provider-specific | e.g. `gemini-2.5-pro`.                                                   |
-| `BEEHIVE_LLM_API_KEY`   | — (required for API-key providers) | Not used by Vertex (uses ADC).                                                |
-| `BEEHIVE_LLM_ARGS`      | empty     | Comma-separated `key=value`. For Vertex: `project_id=foo,location=us-central1`. Always use `project_id` (never bare `project`). |
+| `BEEHIVE_LLM_PROVIDER`  | `gemini`  | `gemini` or `claude`. No other values are accepted.                           |
+| `BEEHIVE_LLM_MODEL`     | — (required) | e.g. `gemini-2.5-pro`, `claude-sonnet-4@20250514`, `claude-sonnet-4-5-20250929`. **Required** — beehive never falls back to provider-internal defaults. |
+| `BEEHIVE_LLM_API_KEY`   | — (Anthropic direct API only) | Anthropic API key for `claude` via Anthropic's direct API. Not used by `gemini`. Mutually exclusive with `BEEHIVE_LLM_ARGS=project_id/location` on `claude`. |
+| `BEEHIVE_LLM_ARGS`      | empty     | Comma-separated `key=value`. For Vertex AI (`gemini`, or `claude` via Vertex): `project_id=foo,location=us-central1`. Always use `project_id` (never bare `project`). |
+
+### Provider auth paths
+
+- **`gemini`** — Vertex AI only. Requires `BEEHIVE_LLM_ARGS=project_id=...,location=...`. Authentication is by ADC; `BEEHIVE_LLM_API_KEY` is unused.
+- **`claude`** — two mutually exclusive paths, selected by what you configure:
+  - **Vertex AI**: set `BEEHIVE_LLM_ARGS=project_id=...,location=...` (e.g. `location=global`). Authentication is by ADC. Do not set `BEEHIVE_LLM_API_KEY`.
+  - **Anthropic direct API**: set `BEEHIVE_LLM_API_KEY`. Do not set `project_id` / `location` in `BEEHIVE_LLM_ARGS`.
+  - Setting both, or neither, is a configuration error and `beehive validate` will refuse to start.
 
 ## Provider credentials
 

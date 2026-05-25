@@ -317,10 +317,15 @@ func (c *LLM) Flags() []cli.Flag {
 // Different providers have different auth surfaces:
 //   - gemini: Vertex AI flow — ADC handles credentials, but
 //     BEEHIVE_LLM_ARGS must carry project_id + location. No API key.
-//   - openai / claude: API key flow — BEEHIVE_LLM_API_KEY is required.
+//   - claude: two paths, mutually exclusive.
+//   - Vertex AI: BEEHIVE_LLM_ARGS must carry project_id + location;
+//     ADC handles credentials. No API key.
+//   - Anthropic direct API: BEEHIVE_LLM_API_KEY is required and
+//     BEEHIVE_LLM_ARGS=project_id/location must NOT be set.
 //
 // blog-kind sources need the Extractor regardless of provider, so we
-// always require provider + model.
+// always require provider + model. Model has no implicit default —
+// gollem's provider-internal defaults are intentionally NOT relied on.
 func (c *LLM) Validate() error {
 	missing := []string{}
 	if c.Provider == "" {
@@ -342,14 +347,28 @@ func (c *LLM) Validate() error {
 		if args["location"] == "" {
 			missing = append(missing, "BEEHIVE_LLM_ARGS=location=...")
 		}
-	case "openai", "claude":
-		if c.APIKey == "" {
-			missing = append(missing, "BEEHIVE_LLM_API_KEY")
+	case "claude":
+		args, err := c.ArgsMap()
+		if err != nil {
+			return err
+		}
+		hasVertex := args["project_id"] != "" && args["location"] != ""
+		hasAPIKey := c.APIKey != ""
+		switch {
+		case hasVertex && hasAPIKey:
+			return goerr.New("claude: BEEHIVE_LLM_ARGS=project_id/location and BEEHIVE_LLM_API_KEY are mutually exclusive — pick one auth path",
+				goerr.V("provider", c.Provider),
+				goerr.T(errutil.TagInvalidInput))
+		case hasVertex, hasAPIKey:
+			// OK
+		default:
+			missing = append(missing,
+				"either BEEHIVE_LLM_ARGS=project_id=...,location=... (Vertex AI) or BEEHIVE_LLM_API_KEY (Anthropic direct API)")
 		}
 	case "":
 		// provider already flagged above
 	default:
-		return goerr.New("unsupported BEEHIVE_LLM_PROVIDER (only gemini/openai/claude)",
+		return goerr.New("unsupported BEEHIVE_LLM_PROVIDER (only gemini / claude)",
 			goerr.V("provider", c.Provider),
 			goerr.T(errutil.TagInvalidInput))
 	}
