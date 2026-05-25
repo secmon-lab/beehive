@@ -114,7 +114,7 @@ type IoCRepository interface {
 	SaveIoCCounts(ctx context.Context, counts *model.IoCCounts) error
 
 	// ListRecentIoCsAfter returns up to `limit` IoCs ordered by
-	// (LastSeenAt DESC, ID ASC), strictly past the supplied cursor.
+	// (LastSeenAt DESC, ID DESC), strictly past the supplied cursor.
 	// Pass a nil cursor to start at the head of the collection.
 	//
 	// The cursor is a (LastSeenAt, ID) pair instead of LastSeenAt
@@ -122,9 +122,12 @@ type IoCRepository interface {
 	// with the same LastSeenAt (see usecase/fetch.go::
 	// bulkPersistSeeds). A LastSeenAt-only cursor would silently
 	// drop every same-timestamp document past the page break.
-	// Firestore needs a composite index on (LastSeenAt DESC,
-	// __name__ ASC) for this to run — the operator URL printed in
-	// the startup error tells which index to create.
+	//
+	// Both sort terms share the same direction so the Firestore
+	// backend stays on the auto-created single-field index on
+	// LastSeenAt (its implicit __name__ tiebreaker matches the
+	// primary direction). This project intentionally avoids any
+	// query that would require provisioning a composite index.
 	ListRecentIoCsAfter(ctx context.Context, limit int, after *model.IoCListCursor) ([]*model.IoC, error)
 }
 

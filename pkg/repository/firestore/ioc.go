@@ -26,33 +26,31 @@ import (
 var bulkChunkSize = 500
 
 // ListRecentIoCs returns up to `limit` IoCs ordered by LastSeenAt
-// descending. Needs a Firestore index on `LastSeenAt desc` — the
-// startup-time error from Firestore will tell the operator which
-// single-field index to create.
+// descending. Backed by Firestore's auto-created single-field index on
+// LastSeenAt (descending) — no manual index setup is required.
 func (f *Firestore) ListRecentIoCs(ctx context.Context, limit int) ([]*model.IoC, error) {
 	return f.ListRecentIoCsAfter(ctx, limit, nil)
 }
 
-// ListRecentIoCsAfter pages over the (LastSeenAt DESC, ID ASC) stream.
-// The cursor uses both fields because feed-kind sources stamp every
-// IoC of a batch with the same LastSeenAt (see usecase/fetch.go::
-// bulkPersistSeeds); a LastSeenAt-only cursor would silently drop
-// every same-timestamp document past the page break.
+// ListRecentIoCsAfter pages over the (LastSeenAt DESC, __name__ DESC)
+// stream. The cursor uses both fields because feed-kind sources stamp
+// every IoC of a batch with the same LastSeenAt (see
+// usecase/fetch.go::bulkPersistSeeds); a LastSeenAt-only cursor would
+// silently drop every same-timestamp document past the page break.
 //
-// Requires a Firestore composite index on
-//
-//	(LastSeenAt DESC, __name__ ASC)
-//
-// The first query against an un-indexed deployment will return a
-// FAILED_PRECONDITION error whose message includes a one-click URL to
-// create the index.
+// Both order terms are descending so that the query is served by
+// Firestore's auto-created single-field index on LastSeenAt — the
+// implicit __name__ tiebreaker matches the primary direction, so no
+// composite index needs to be provisioned. Mixing directions
+// (LastSeenAt DESC + __name__ ASC) would force a composite index,
+// which this project intentionally avoids.
 func (f *Firestore) ListRecentIoCsAfter(ctx context.Context, limit int, after *model.IoCListCursor) ([]*model.IoC, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
 	q := f.client.Collection(collectionIoCs).
 		OrderBy("LastSeenAt", firestore.Desc).
-		OrderBy(firestore.DocumentID, firestore.Asc).
+		OrderBy(firestore.DocumentID, firestore.Desc).
 		Limit(limit)
 	if after != nil {
 		q = q.StartAfter(after.LastSeenAt, string(after.ID))

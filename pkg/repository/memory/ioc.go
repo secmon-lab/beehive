@@ -103,13 +103,15 @@ func (m *Memory) CountIoCsOfType(_ context.Context, t types.IoCType) (int64, err
 }
 
 // ListRecentIoCs returns up to `limit` IoCs ordered by LastSeenAt
-// descending. Ties on LastSeenAt fall back to ID for a stable order.
+// descending. Ties on LastSeenAt fall back to ID descending so the
+// order matches the Firestore backend, which uses (LastSeenAt DESC,
+// __name__ DESC) to stay on the single-field auto index.
 func (m *Memory) ListRecentIoCs(ctx context.Context, limit int) ([]*model.IoC, error) {
 	return m.ListRecentIoCsAfter(ctx, limit, nil)
 }
 
 // ListRecentIoCsAfter returns up to `limit` IoCs strictly past the
-// supplied (LastSeenAt, ID) cursor under (LastSeenAt DESC, ID ASC)
+// supplied (LastSeenAt, ID) cursor under (LastSeenAt DESC, ID DESC)
 // ordering. Pass nil to start at the head.
 func (m *Memory) ListRecentIoCsAfter(_ context.Context, limit int, after *model.IoCListCursor) ([]*model.IoC, error) {
 	if limit <= 0 {
@@ -126,14 +128,14 @@ func (m *Memory) ListRecentIoCsAfter(_ context.Context, limit int, after *model.
 		if !out[i].LastSeenAt.Equal(out[j].LastSeenAt) {
 			return out[i].LastSeenAt.After(out[j].LastSeenAt)
 		}
-		return out[i].ID < out[j].ID
+		return out[i].ID > out[j].ID
 	})
 	if after != nil {
 		// Find the first element strictly past the cursor under
-		// (LastSeenAt DESC, ID ASC) order.
+		// (LastSeenAt DESC, ID DESC) order.
 		idx := len(out)
 		for k, i := range out {
-			if i.LastSeenAt.Equal(after.LastSeenAt) && i.ID > after.ID {
+			if i.LastSeenAt.Equal(after.LastSeenAt) && i.ID < after.ID {
 				idx = k
 				break
 			}

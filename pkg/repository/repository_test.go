@@ -415,8 +415,7 @@ func TestListRecentIoCsAfter(t *testing.T) {
 		ctx := context.Background()
 
 		// Seed five IoCs with strictly increasing LastSeenAt so the
-		// cursor traversal has a deterministic order even when the
-		// Firestore DB is shared with prior runs.
+		// cursor traversal has a deterministic order across pages.
 		seedSuffix := id.NewULID()
 		base := time.Now().UTC()
 		seeded := make([]*model.IoC, 0, 5)
@@ -434,29 +433,58 @@ func TestListRecentIoCsAfter(t *testing.T) {
 			seeded = append(seeded, ioc)
 		}
 
-		// Cursor sits strictly newer than any seeded entry so the
-		// shared Firestore DB cannot leak unrelated rows in.
-		afterFirstPage := &model.IoCListCursor{
-			LastSeenAt: base.Add(time.Duration(len(seeded)+1) * time.Second),
-			// Empty ID is fine here — Firestore string compare puts
-			// "" before any real ID, so the boundary still excludes
-			// everything strictly newer than LastSeenAt.
+		ours := map[types.IoCID]bool{}
+		for _, i := range seeded {
+			ours[i.ID] = true
+		}
+		filter := func(in []*model.IoC) []*model.IoC {
+			out := make([]*model.IoC, 0, len(in))
+			for _, i := range in {
+				if ours[i.ID] {
+					out = append(out, i)
+				}
+			}
+			return out
 		}
 
-		page1, err := repo.ListRecentIoCsAfter(ctx, 2, afterFirstPage)
-		gt.NoError(t, err).Required()
-		gt.A(t, page1).Length(2)
-		gt.Equal(t, page1[0].ID, seeded[4].ID)
-		gt.Equal(t, page1[1].ID, seeded[3].ID)
+		// Head sentinel: strictly newer than any seeded entry. ID uses
+		// "~" because the Firestore backend turns it into a document
+		// reference under the __name__ tiebreaker, and "iocs/" (empty
+		// id, trailing slash) is not a valid document path. "~" is
+		// lex-larger than any sha256 hex IoC.ID (chars 0-9a-f), so
+		// under (LastSeenAt DESC, ID DESC) the StartAfter boundary
+		// still excludes everything with LastSeenAt > cursor.
+		cursor := &model.IoCListCursor{
+			LastSeenAt: base.Add(time.Duration(len(seeded)+1) * time.Second),
+			ID:         types.IoCID("~"),
+		}
 
-		page2, err := repo.ListRecentIoCsAfter(ctx, 2, &model.IoCListCursor{
-			LastSeenAt: page1[1].LastSeenAt,
-			ID:         page1[1].ID,
-		})
-		gt.NoError(t, err).Required()
-		gt.A(t, page2).Length(2)
-		gt.Equal(t, page2[0].ID, seeded[2].ID)
-		gt.Equal(t, page2[1].ID, seeded[1].ID)
+		// Walk pages of 2 and collect "our" entries until all five
+		// surface. The Firestore test database is shared with prior
+		// runs, so each raw page may carry unrelated rows that we
+		// have to step over via the natural cursor advance.
+		collected := make([]*model.IoC, 0, len(seeded))
+		const maxPages = 200
+		for k := 0; k < maxPages && len(collected) < len(seeded); k++ {
+			page, err := repo.ListRecentIoCsAfter(ctx, 2, cursor)
+			gt.NoError(t, err).Required()
+			if len(page) == 0 {
+				break
+			}
+			collected = append(collected, filter(page)...)
+			tail := page[len(page)-1]
+			cursor = &model.IoCListCursor{
+				LastSeenAt: tail.LastSeenAt,
+				ID:         tail.ID,
+			}
+		}
+
+		// All five seeded entries must surface, in (LastSeenAt DESC,
+		// ID DESC) order — newest first.
+		gt.A(t, collected).Length(len(seeded))
+		for i := 0; i < len(seeded); i++ {
+			gt.Equal(t, collected[i].ID, seeded[len(seeded)-1-i].ID)
+		}
 	})
 }
 
@@ -505,9 +533,13 @@ func TestListRecentIoCsAfter_SameTimestampBoundary(t *testing.T) {
 		}
 
 		// Walk the four entries in two pages of 2. The same-timestamp
-		// items must all surface across the boundary.
+		// items must all surface across the boundary. ID uses "~" as
+		// a head sentinel (see TestListRecentIoCsAfter for the why);
+		// the Firestore backend rejects empty IDs because __name__
+		// resolves to "iocs/" — an invalid document path.
 		page1, err := repo.ListRecentIoCsAfter(ctx, 2, &model.IoCListCursor{
 			LastSeenAt: stamp.Add(time.Second), // strictly newer than our batch
+			ID:         types.IoCID("~"),
 		})
 		gt.NoError(t, err).Required()
 		got1 := filter(page1)
