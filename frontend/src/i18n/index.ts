@@ -9,8 +9,15 @@ export type Dict = typeof en;
 
 const dict: Dict = en;
 
-export function t(key: keyof Dict): string {
-  return dict[key] ?? key;
+export function t(
+  key: keyof Dict,
+  params?: Record<string, string | number>,
+): string {
+  const raw = dict[key] ?? (key as string);
+  if (!params) return raw;
+  return raw.replace(/\{(\w+)\}/g, (_, name: string) =>
+    params[name] !== undefined ? String(params[name]) : `{${name}}`,
+  );
 }
 
 // Hook-shaped variant for components that prefer the React naming

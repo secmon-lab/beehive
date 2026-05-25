@@ -30,6 +30,7 @@ type Memory struct {
 	refs         map[types.IoCID]map[types.RefID]*model.IoCRef
 	runs         map[types.RunID]*model.Run
 	locks        map[string]*model.Lock // key: kind + "/" + targetID
+	iocCounts    *model.IoCCounts       // nil until SaveIoCCounts has been called
 
 	// holderID is used by the lock implementation so each Memory instance
 	// looks like a distinct "holder". Real implementations derive this

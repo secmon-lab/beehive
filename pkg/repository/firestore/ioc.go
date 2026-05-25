@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	"github.com/secmon-lab/beehive/pkg/domain/types"
@@ -27,15 +28,27 @@ var bulkChunkSize = 500
 // ListRecentIoCs returns up to `limit` IoCs ordered by LastSeenAt
 // descending. Needs a Firestore index on `LastSeenAt desc` — the
 // startup-time error from Firestore will tell the operator which
-// composite index to create.
+// single-field index to create.
 func (f *Firestore) ListRecentIoCs(ctx context.Context, limit int) ([]*model.IoC, error) {
+	return f.ListRecentIoCsAfter(ctx, limit, nil)
+}
+
+// ListRecentIoCsAfter pages over the LastSeenAt-DESC stream. The
+// cursor key is `LastSeenAt` only (no DocumentID tiebreaker) so the
+// existing single-field index suffices — same-timestamp boundary
+// shuffles are accepted as a fair trade for not requiring an operator
+// to provision a composite index.
+func (f *Firestore) ListRecentIoCsAfter(ctx context.Context, limit int, after *time.Time) ([]*model.IoC, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
-	iter := f.client.Collection(collectionIoCs).
+	q := f.client.Collection(collectionIoCs).
 		OrderBy("LastSeenAt", firestore.Desc).
-		Limit(limit).
-		Documents(ctx)
+		Limit(limit)
+	if after != nil {
+		q = q.Where("LastSeenAt", "<", *after)
+	}
+	iter := q.Documents(ctx)
 	defer iter.Stop()
 
 	out := make([]*model.IoC, 0, limit)
@@ -54,6 +67,87 @@ func (f *Firestore) ListRecentIoCs(ctx context.Context, limit int) ([]*model.IoC
 		out = append(out, &i)
 	}
 	return out, nil
+}
+
+// CountIoCsOfType runs one Firestore aggregation `count()` query for
+// a single IoC type. The `WHERE Type == "<type>"` filter rides
+// Firestore's single-field `Type` index, so the server side does not
+// scan the whole collection — only the matching subset is aggregated.
+//
+// Billing-wise: Firestore charges `count()` in chunks of 1000 matched
+// documents. With N total docs of this type, one call costs about
+// ceil(N / 1000) read units. The fan-out across every IoC type lives
+// in usecase.RefreshIoCCounts, which calls this concurrently and
+// persists the rolled-up result via SaveIoCCounts.
+func (f *Firestore) CountIoCsOfType(ctx context.Context, t types.IoCType) (int64, error) {
+	q := f.client.Collection(collectionIoCs).Where("Type", "==", string(t))
+	res, err := q.NewAggregationQuery().WithCount("c").Get(ctx)
+	if err != nil {
+		return 0, goerr.Wrap(err, "aggregation count", goerr.V("type", t))
+	}
+	v, ok := res["c"].(*firestorepb.Value)
+	if !ok {
+		return 0, goerr.New("unexpected aggregation result shape",
+			goerr.V("type", t),
+			goerr.V("got", res["c"]))
+	}
+	return v.GetIntegerValue(), nil
+}
+
+// iocCountsDoc is the on-disk shape of metrics/ioc_counts. We map
+// types.IoCType to string explicitly because Firestore decoders
+// don't handle named string types as map keys gracefully.
+type iocCountsDoc struct {
+	ByType    map[string]int64
+	Total     int64
+	UpdatedAt time.Time
+}
+
+// GetIoCCounts reads metrics/ioc_counts. Returns the zero-valued shape
+// (every type set to 0, UpdatedAt unset) when the document has not
+// been written yet — that case typically means RefreshIoCCounts hasn't
+// run since the data was inserted.
+func (f *Firestore) GetIoCCounts(ctx context.Context) (*model.IoCCounts, error) {
+	doc, err := f.client.Collection(collectionMetrics).Doc(docIoCCounts).Get(ctx)
+	if err != nil {
+		if isNotFound(err) {
+			return model.ZeroIoCCounts(), nil
+		}
+		return nil, goerr.Wrap(err, "get ioc counts")
+	}
+	var raw iocCountsDoc
+	if err := doc.DataTo(&raw); err != nil {
+		return nil, goerr.Wrap(err, "decode ioc counts")
+	}
+	out := model.ZeroIoCCounts()
+	out.Total = raw.Total
+	out.UpdatedAt = raw.UpdatedAt
+	for k, v := range raw.ByType {
+		out.ByType[types.IoCType(k)] = v
+	}
+	return out, nil
+}
+
+// SaveIoCCounts replaces metrics/ioc_counts atomically (single-doc
+// Set). Called by usecase.RefreshIoCCounts at the tail of every fetch
+// run, never on a hot read path.
+func (f *Firestore) SaveIoCCounts(ctx context.Context, counts *model.IoCCounts) error {
+	if counts == nil {
+		return goerr.New("counts is nil", goerr.T(errutil.TagInvalidInput))
+	}
+	raw := iocCountsDoc{
+		ByType:    make(map[string]int64, len(counts.ByType)),
+		Total:     counts.Total,
+		UpdatedAt: counts.UpdatedAt,
+	}
+	for k, v := range counts.ByType {
+		raw.ByType[string(k)] = v
+	}
+	_, err := f.client.Collection(collectionMetrics).Doc(docIoCCounts).Set(ctx, raw)
+	if err != nil {
+		return goerr.Wrap(err, "save ioc counts")
+	}
+	return nil
 }
 
 func (f *Firestore) GetIoC(ctx context.Context, id types.IoCID) (*model.IoC, error) {
@@ -111,7 +205,7 @@ func (f *Firestore) BulkUpsertIoCs(ctx context.Context, pairs []model.IoCWithRef
 	total := len(entries)
 	started := time.Now()
 
-	logger.LogAttrs(ctx, slog.LevelInfo, "ioc: bulk upsert start",
+	logger.LogAttrs(ctx, slog.LevelDebug, "ioc: bulk upsert start",
 		slog.Int("input_pairs", len(pairs)),
 		slog.Int("deduped_iocs", total),
 		slog.Int("chunk_size", bulkChunkSize),
@@ -128,7 +222,7 @@ func (f *Firestore) BulkUpsertIoCs(ctx context.Context, pairs []model.IoCWithRef
 		}
 	}
 
-	logger.LogAttrs(ctx, slog.LevelInfo, "ioc: bulk upsert done",
+	logger.LogAttrs(ctx, slog.LevelDebug, "ioc: bulk upsert done",
 		slog.Int("persisted", total),
 		slog.Duration("total_elapsed", time.Since(started)),
 	)
@@ -237,7 +331,7 @@ func (f *Firestore) bulkUpsertChunk(ctx context.Context, chunk []*iocEntry, star
 		}
 	}
 
-	logger.LogAttrs(ctx, slog.LevelInfo, "ioc: bulk upsert progress",
+	logger.LogAttrs(ctx, slog.LevelDebug, "ioc: bulk upsert progress",
 		slog.Int("done", done),
 		slog.Int("total", total),
 		slog.Int("chunk_new", newCount),

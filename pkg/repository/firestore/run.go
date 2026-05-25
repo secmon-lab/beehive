@@ -2,6 +2,7 @@ package firestore
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	"cloud.google.com/go/firestore"
@@ -41,6 +42,38 @@ func (f *Firestore) UpdateRun(ctx context.Context, r *model.Run) error {
 		return goerr.Wrap(err, "update run", goerr.V("id", r.ID))
 	}
 	return nil
+}
+
+// ListRecentRuns returns up to `limit` runs ordered by StartedAt
+// descending. Needs a Firestore index on `StartedAt desc` — the
+// startup-time error from Firestore will tell the operator which
+// composite index to create.
+func (f *Firestore) ListRecentRuns(ctx context.Context, limit int) ([]*model.Run, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	iter := f.client.Collection(collectionRuns).
+		OrderBy("StartedAt", firestore.Desc).
+		Limit(limit).
+		Documents(ctx)
+	defer iter.Stop()
+
+	out := make([]*model.Run, 0, limit)
+	for {
+		doc, err := iter.Next()
+		if errors.Is(err, ErrIteratorDone()) {
+			break
+		}
+		if err != nil {
+			return nil, goerr.Wrap(err, "iterate runs")
+		}
+		var r model.Run
+		if err := doc.DataTo(&r); err != nil {
+			return nil, goerr.Wrap(err, "decode run", goerr.V("id", doc.Ref.ID))
+		}
+		out = append(out, &r)
+	}
+	return out, nil
 }
 
 // AppendRunSource transactionally appends to Run.Sources and SourceIDs.

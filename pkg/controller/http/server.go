@@ -22,7 +22,9 @@ import (
 	"github.com/secmon-lab/beehive/pkg/domain/types"
 	"github.com/secmon-lab/beehive/pkg/service/source_catalog"
 	"github.com/secmon-lab/beehive/pkg/usecase"
+	"github.com/secmon-lab/beehive/pkg/utils/async"
 	"github.com/secmon-lab/beehive/pkg/utils/errutil"
+	"github.com/secmon-lab/beehive/pkg/utils/id"
 	"github.com/secmon-lab/beehive/pkg/utils/logging"
 )
 
@@ -60,8 +62,10 @@ func New(opts ...Option) *Server {
 		r.Put("/sources/{id}/enabled_override", s.setEnabledOverride)
 		r.Post("/sources/{id}/fetch", s.triggerSourceFetch)
 		r.Post("/fetch", s.triggerFetchAll)
+		r.Get("/runs", s.listRuns)
 		r.Get("/runs/{id}", s.getRun)
 		r.Get("/iocs", s.listRecentIoCs)
+		r.Get("/iocs/stats", s.iocStats)
 		r.Get("/iocs/lookup", s.lookupIoC)
 	})
 
@@ -157,6 +161,73 @@ func (s *Server) triggerFetchAll(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusServiceUnavailable, "not_ready", "catalog not initialised", nil)
 		return
 	}
+	mode := r.URL.Query().Get("mode")
+
+	// De-duplicate concurrent fetch calls (Cloud Scheduler retries, UI
+	// double-clicks): if a Run is still in progress, hand the caller
+	// its id instead of starting another one. The check is best-effort
+	// — a true race between two near-simultaneous requests still ends
+	// up with two Runs, which CLAUDE.md §6 (idempotent fetches)
+	// explicitly accepts.
+	if s.Deps.Repo != nil {
+		recents, err := usecase.ListRecentRuns(r.Context(), s.Deps.Repo, 10)
+		if err != nil {
+			writeErr(r.Context(), w, err)
+			return
+		}
+		for _, existing := range recents {
+			if existing.Status == types.RunStatusRunning {
+				writeJSON(w, http.StatusAccepted, map[string]any{
+					"runId":      existing.ID,
+					"mode":       mode,
+					"inProgress": true,
+				})
+				return
+			}
+		}
+	}
+
+	if mode == "async" {
+		// Pre-create the Run so the client can poll it immediately.
+		if s.Deps.Repo == nil {
+			writeProblem(w, http.StatusServiceUnavailable, "not_ready", "repository not initialised", nil)
+			return
+		}
+		run := &model.Run{
+			ID:        types.RunID("run-" + id.NewULID()),
+			Trigger:   "api",
+			Status:    types.RunStatusRunning,
+			StartedAt: time.Now().UTC(),
+		}
+		if err := s.Deps.Repo.CreateRun(r.Context(), run); err != nil {
+			writeErr(r.Context(), w, err)
+			return
+		}
+		// Detach: HTTP request will be done by the time fetch finishes.
+		// Pull the logger across so log lines stay attributable.
+		bgCtx := logging.With(context.Background(), logging.From(r.Context()))
+		logging.From(r.Context()).LogAttrs(r.Context(), slog.LevelInfo, "fetch all: dispatched",
+			slog.String("run_id", string(run.ID)),
+			slog.String("mode", "async"),
+		)
+		async.DispatchDetached(bgCtx, func(ctx context.Context) error {
+			_, err := usecase.FetchAll(
+				ctx,
+				depsWithCatalog(s.Deps, s.Catalog),
+				"api",
+				"",
+				usecase.WithRunID(run.ID),
+			)
+			return err
+		})
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"runId": run.ID,
+			"mode":  "async",
+		})
+		return
+	}
+
+	// Default: synchronous fetch (Cloud Scheduler entry path).
 	run, err := usecase.FetchAll(r.Context(), depsWithCatalog(s.Deps, s.Catalog), "api", "")
 	if err != nil {
 		writeErr(r.Context(), w, err)
@@ -179,7 +250,7 @@ func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, runPayload(run))
 }
 
-func (s *Server) listRecentIoCs(w http.ResponseWriter, r *http.Request) {
+func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 	if s.Deps.Repo == nil {
 		writeProblem(w, http.StatusServiceUnavailable, "not_ready", "repository not initialised", nil)
 		return
@@ -193,7 +264,43 @@ func (s *Server) listRecentIoCs(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = n
 	}
-	iocs, err := usecase.ListRecentIoCs(r.Context(), s.Deps.Repo, limit)
+	runs, err := usecase.ListRecentRuns(r.Context(), s.Deps.Repo, limit)
+	if err != nil {
+		writeErr(r.Context(), w, err)
+		return
+	}
+	payload := make([]map[string]any, 0, len(runs))
+	for _, run := range runs {
+		payload = append(payload, runPayload(run))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runs": payload})
+}
+
+func (s *Server) listRecentIoCs(w http.ResponseWriter, r *http.Request) {
+	if s.Deps.Repo == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "not_ready", "repository not initialised", nil)
+		return
+	}
+	q := r.URL.Query()
+	limit := 0
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			writeProblem(w, http.StatusBadRequest, "invalid_input", "limit must be a non-negative integer", nil)
+			return
+		}
+		limit = n
+	}
+	var after *time.Time
+	if v := q.Get("after"); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			writeProblem(w, http.StatusBadRequest, "invalid_input", "after must be an RFC 3339 timestamp", nil)
+			return
+		}
+		after = &t
+	}
+	iocs, err := usecase.ListRecentIoCsAfter(r.Context(), s.Deps.Repo, limit, after)
 	if err != nil {
 		writeErr(r.Context(), w, err)
 		return
@@ -202,7 +309,34 @@ func (s *Server) listRecentIoCs(w http.ResponseWriter, r *http.Request) {
 	for _, i := range iocs {
 		payload = append(payload, iocPayload(i))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"iocs": payload})
+	resp := map[string]any{"iocs": payload}
+	// Only emit nextCursor when the page is full — otherwise the
+	// client knows it has reached the tail.
+	if limit > 0 && len(iocs) == limit && len(iocs) > 0 {
+		resp["nextCursor"] = iocs[len(iocs)-1].LastSeenAt.Format(time.RFC3339Nano)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) iocStats(w http.ResponseWriter, r *http.Request) {
+	if s.Deps.Repo == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "not_ready", "repository not initialised", nil)
+		return
+	}
+	counts, err := usecase.GetIoCCounts(r.Context(), s.Deps.Repo)
+	if err != nil {
+		writeErr(r.Context(), w, err)
+		return
+	}
+	byType := make(map[string]int64, len(counts.ByType))
+	for k, v := range counts.ByType {
+		byType[string(k)] = v
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"total":     counts.Total,
+		"byType":    byType,
+		"updatedAt": counts.UpdatedAt,
+	})
 }
 
 func (s *Server) lookupIoC(w http.ResponseWriter, r *http.Request) {

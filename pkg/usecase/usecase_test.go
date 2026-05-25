@@ -106,6 +106,36 @@ func TestLockManager_AcquireAndRelease(t *testing.T) {
 	gt.NoError(t, lock.Release(ctx))
 }
 
+// TestLockManager_LosingLockDoesNotPanic exercises the case where the
+// underlying repository drops the lock between heartbeats (another
+// instance stole it). The heartbeat goroutine must exit quietly
+// instead of returning an error that async.Dispatch escalates.
+func TestLockManager_LosingLockDoesNotPanic(t *testing.T) {
+	ctx := context.Background()
+	repo := memory.New()
+	mgr := usecase.NewLockManager(repo, "instance-X-"+id.NewULID())
+
+	old := usecase.LockHeartbeatInterval
+	usecase.LockHeartbeatInterval = 5 * time.Millisecond
+	t.Cleanup(func() { usecase.LockHeartbeatInterval = old })
+
+	targetID := "src-lostlock-" + id.NewULID()
+	lock, err := mgr.Acquire(ctx, model.LockKindFetch, targetID)
+	gt.NoError(t, err)
+	gt.NotNil(t, lock)
+
+	// Yank the lock out from under the heartbeat. The next renew tick
+	// will see "not found" and turn it into ErrLockLost.
+	gt.NoError(t, repo.ReleaseLock(ctx, model.LockKindFetch, targetID))
+
+	// Give the heartbeat enough wall time to fire at least once.
+	time.Sleep(40 * time.Millisecond)
+
+	// Release MUST still succeed (cancel + wait + delete) — i.e. the
+	// goroutine did not deadlock or panic on the lost lock.
+	gt.NoError(t, lock.Release(ctx))
+}
+
 func TestBootstrap_LoadsCatalog(t *testing.T) {
 	ctx := context.Background()
 	// A non-existent config path is valid — Bootstrap should not error.
@@ -180,6 +210,41 @@ func TestFetchAll_SkipsWhenNotDue(t *testing.T) {
 	gt.NoError(t, err)
 	gt.Equal(t, run.Total, 1)
 	gt.Equal(t, run.Skipped, 1)
+}
+
+// TestFetchAll_PersistsFailedState makes sure a fetch failure leaves
+// breadcrumbs on the SourceState document: lastStatus=failed,
+// lastError populated, lastFetchedAt updated. Without this the
+// Sources page would silently render "—" for every broken source and
+// the Failing tile would lie at 0.
+func TestFetchAll_PersistsFailedState(t *testing.T) {
+	ctx := context.Background()
+	repo := memory.New()
+
+	src := &model.Source{
+		ID:   types.SourceID("failing-" + id.NewULID()),
+		Name: "Failing Source", Kind: types.KindFeed, Type: "missing-provider",
+		Interval: time.Hour,
+	}
+	cat := &source_catalog.Catalog{Sources: []*model.Source{src}}
+
+	// Empty registry → Resolve("missing-provider") returns an error and
+	// the source enters the failure path.
+	deps := usecase.Deps{
+		Repo:     repo,
+		Lock:     usecase.NewLockManager(repo, "test"),
+		Catalog:  cat,
+		Registry: emptyRegistry(),
+	}
+	run, err := usecase.FetchAll(ctx, deps, "api", "")
+	gt.NoError(t, err)
+	gt.Equal(t, run.Failed, 1)
+
+	state, err := repo.GetSourceState(ctx, src.ID)
+	gt.NoError(t, err).Required()
+	gt.Equal(t, state.LastStatus, types.RunStatusFailed)
+	gt.True(t, state.LastError != "")
+	gt.False(t, state.LastFetchedAt.IsZero())
 }
 
 func TestFetchAll_RespectsDisabled(t *testing.T) {

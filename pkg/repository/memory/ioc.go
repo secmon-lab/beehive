@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"sort"
+	"time"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
@@ -86,9 +87,31 @@ func (m *Memory) BulkUpsertIoCs(ctx context.Context, pairs []model.IoCWithRef) (
 	return len(seen), nil
 }
 
+// CountIoCsOfType walks the in-memory map and tallies entries of the
+// requested type. The fan-out across all types lives in the usecase
+// layer (so the implementation strategy — sequential or concurrent —
+// is a single decision point).
+func (m *Memory) CountIoCsOfType(_ context.Context, t types.IoCType) (int64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var n int64
+	for _, i := range m.iocs {
+		if i.Type == t {
+			n++
+		}
+	}
+	return n, nil
+}
+
 // ListRecentIoCs returns up to `limit` IoCs ordered by LastSeenAt
 // descending. Ties on LastSeenAt fall back to ID for a stable order.
-func (m *Memory) ListRecentIoCs(_ context.Context, limit int) ([]*model.IoC, error) {
+func (m *Memory) ListRecentIoCs(ctx context.Context, limit int) ([]*model.IoC, error) {
+	return m.ListRecentIoCsAfter(ctx, limit, nil)
+}
+
+// ListRecentIoCsAfter returns up to `limit` IoCs strictly older than
+// the supplied LastSeenAt cursor. Pass nil to start at the head.
+func (m *Memory) ListRecentIoCsAfter(_ context.Context, limit int, after *time.Time) ([]*model.IoC, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
@@ -97,6 +120,9 @@ func (m *Memory) ListRecentIoCs(_ context.Context, limit int) ([]*model.IoC, err
 
 	out := make([]*model.IoC, 0, len(m.iocs))
 	for _, i := range m.iocs {
+		if after != nil && !i.LastSeenAt.Before(*after) {
+			continue
+		}
 		out = append(out, cloneIoC(i))
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -109,4 +135,42 @@ func (m *Memory) ListRecentIoCs(_ context.Context, limit int) ([]*model.IoC, err
 		out = out[:limit]
 	}
 	return out, nil
+}
+
+// GetIoCCounts returns the in-memory counter snapshot. Defaults to the
+// zero-valued shape when nothing has been saved yet.
+func (m *Memory) GetIoCCounts(_ context.Context) (*model.IoCCounts, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.iocCounts == nil {
+		return model.ZeroIoCCounts(), nil
+	}
+	out := &model.IoCCounts{
+		ByType:    make(map[types.IoCType]int64, len(m.iocCounts.ByType)),
+		Total:     m.iocCounts.Total,
+		UpdatedAt: m.iocCounts.UpdatedAt,
+	}
+	for k, v := range m.iocCounts.ByType {
+		out.ByType[k] = v
+	}
+	return out, nil
+}
+
+// SaveIoCCounts replaces the in-memory counter snapshot.
+func (m *Memory) SaveIoCCounts(_ context.Context, counts *model.IoCCounts) error {
+	if counts == nil {
+		return goerr.New("counts is nil", goerr.T(errutil.TagInvalidInput))
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c := &model.IoCCounts{
+		ByType:    make(map[types.IoCType]int64, len(counts.ByType)),
+		Total:     counts.Total,
+		UpdatedAt: counts.UpdatedAt,
+	}
+	for k, v := range counts.ByType {
+		c.ByType[k] = v
+	}
+	m.iocCounts = c
+	return nil
 }

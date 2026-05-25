@@ -37,6 +37,8 @@ const (
 	collectionRuns     = "runs"
 	collectionLocks    = "locks"
 	subLockEntries     = "entries" // sub-collection under locks/{Kind}
+	collectionMetrics  = "metrics"
+	docIoCCounts       = "ioc_counts" // doc id under collectionMetrics
 )
 
 // Firestore is the Repository backed by Cloud Firestore.

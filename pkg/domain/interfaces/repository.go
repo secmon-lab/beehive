@@ -5,6 +5,7 @@ package interfaces
 
 import (
 	"context"
+	"time"
 
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	"github.com/secmon-lab/beehive/pkg/domain/types"
@@ -88,6 +89,39 @@ type IoCRepository interface {
 	// — callers should pick a sane cap (the HTTP handler enforces an
 	// upper bound).
 	ListRecentIoCs(ctx context.Context, limit int) ([]*model.IoC, error)
+
+	// CountIoCsOfType returns the document count for a single IoC
+	// type without scanning the rest of the collection. The Firestore
+	// backend uses an aggregation `count()` query with a
+	// `WHERE Type == <type>` filter that rides Firestore's
+	// single-field `Type` index, so the cost is bounded by the
+	// matching document subset (Firestore bills count() in chunks
+	// of 1000 documents). Higher-level fan-out across every type
+	// belongs in the usecase layer, not here.
+	CountIoCsOfType(ctx context.Context, t types.IoCType) (int64, error)
+
+	// GetIoCCounts reads the precomputed counter document written by
+	// usecase.RefreshIoCCounts. Operator UI calls this on every page
+	// view, so the read cost MUST be O(1) — one document for
+	// Firestore, an in-memory map for the memory backend. When no
+	// counter has been written yet (fresh install, or before the
+	// first fetch run), implementations return a zero-valued
+	// IoCCounts with every known type set to 0 — never an error.
+	GetIoCCounts(ctx context.Context) (*model.IoCCounts, error)
+
+	// SaveIoCCounts replaces the counter document atomically
+	// (single-doc Set). Called by usecase.RefreshIoCCounts at the
+	// tail of every fetch run.
+	SaveIoCCounts(ctx context.Context, counts *model.IoCCounts) error
+
+	// ListRecentIoCsAfter returns up to `limit` IoCs ordered by
+	// LastSeenAt descending, strictly older than the supplied
+	// cursor. Pass a nil cursor to start at the head of the
+	// collection. Cursors use LastSeenAt only — same-timestamp
+	// boundary jitter is accepted in exchange for not requiring a
+	// composite index (the existing single-field LastSeenAt index
+	// suffices).
+	ListRecentIoCsAfter(ctx context.Context, limit int, after *time.Time) ([]*model.IoC, error)
 }
 
 // ---- runs/{ID} ----
@@ -100,6 +134,10 @@ type RunRepository interface {
 	// bump per-Run counters in the same transaction.
 	AppendRunSource(ctx context.Context, runID types.RunID, src *model.RunSource) error
 	GetRun(ctx context.Context, id types.RunID) (*model.Run, error)
+	// ListRecentRuns returns up to `limit` runs ordered by StartedAt
+	// descending. Used by the operator-facing Runs page; long-term
+	// history lives in BigQuery.
+	ListRecentRuns(ctx context.Context, limit int) ([]*model.Run, error)
 }
 
 // ---- locks/{Kind}/entries/{TargetID} ----
