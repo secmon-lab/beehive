@@ -8,15 +8,18 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/m-mizutani/goerr/v2"
+	"github.com/secmon-lab/beehive/frontend"
 	"github.com/secmon-lab/beehive/pkg/domain/interfaces"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	"github.com/secmon-lab/beehive/pkg/domain/types"
@@ -24,6 +27,7 @@ import (
 	"github.com/secmon-lab/beehive/pkg/usecase"
 	"github.com/secmon-lab/beehive/pkg/utils/errutil"
 	"github.com/secmon-lab/beehive/pkg/utils/logging"
+	"github.com/secmon-lab/beehive/pkg/utils/safe"
 )
 
 // Version is injected by main.go before the router is built.
@@ -38,13 +42,19 @@ type Server struct {
 	Router  chi.Router
 	Deps    Deps
 	Catalog *source_catalog.Catalog
+	Static  fs.FS
 }
 
 // New builds the router with the full set of v1 endpoints. The optional
 // `deps` may be empty (Deps{}); handlers that require state then return
 // `503 Service Unavailable`.
+//
+// Unless WithStaticFS overrides it, the embedded React build under
+// frontend/dist is mounted at "/" with a catch-all SPA handler. chi's
+// radix tree prefers the static "/api/v1" prefix over the "/*"
+// wildcard, so API 404s still get the JSON problem response.
 func New(opts ...Option) *Server {
-	s := &Server{}
+	s := &Server{Static: defaultStaticFS()}
 	for _, o := range opts {
 		o(s)
 	}
@@ -65,9 +75,29 @@ func New(opts ...Option) *Server {
 		r.Get("/iocs/lookup", s.lookupIoC)
 	})
 
+	if s.Static != nil {
+		r.Get("/*", spaHandler(s.Static))
+	}
+
 	r.NotFound(notFound)
 	s.Router = r
 	return s
+}
+
+// defaultStaticFS returns the embedded frontend/dist sub-FS when it
+// actually contains a built React app (i.e. index.html is present).
+// In fresh checkouts where `pnpm build` has not run, dist/ holds only
+// the .gitkeep placeholder; we return nil so New() simply skips the
+// catch-all mount and unit tests stay focused on the API surface.
+func defaultStaticFS() fs.FS {
+	sub, err := fs.Sub(frontend.StaticFiles, "dist")
+	if err != nil {
+		return nil
+	}
+	if _, err := fs.Stat(sub, "index.html"); err != nil {
+		return nil
+	}
+	return sub
 }
 
 // Option configures the Server during construction. Passed to New().
@@ -76,6 +106,15 @@ type Option func(*Server)
 func WithDeps(d Deps) Option { return func(s *Server) { s.Deps = d } }
 func WithCatalog(c *source_catalog.Catalog) Option {
 	return func(s *Server) { s.Catalog = c }
+}
+
+// WithStaticFS replaces the default embedded React build with an
+// arbitrary filesystem. Production callers never need this — the
+// default already wires frontend.StaticFiles. It exists so tests can
+// inject an in-memory fstest.MapFS without depending on `pnpm build`.
+// Pass nil to disable the catch-all mount entirely.
+func WithStaticFS(fsys fs.FS) Option {
+	return func(s *Server) { s.Static = fsys }
 }
 
 // ---- handlers ----
@@ -322,6 +361,42 @@ func iocPayload(i *model.IoC) map[string]any {
 func depsWithCatalog(d Deps, c *source_catalog.Catalog) Deps {
 	d.Catalog = c
 	return d
+}
+
+// ---- SPA static handler ----
+
+// spaHandler serves files from the embedded React build. Existing
+// assets are delegated to http.FileServer; anything else (including
+// the root "/") falls back to index.html so client-side react-router
+// routes (e.g. /sources, /iocs) work after a full page reload.
+//
+// Mirrors the pattern used by secmon-lab/warren and
+// secmon-lab/hecatoncheires — keep them aligned when changing this.
+func spaHandler(fsys fs.FS) http.HandlerFunc {
+	fileServer := http.FileServer(http.FS(fsys))
+	return func(w http.ResponseWriter, r *http.Request) {
+		urlPath := strings.TrimPrefix(r.URL.Path, "/")
+		if urlPath == "" {
+			urlPath = "index.html"
+		}
+
+		file, err := fsys.Open(urlPath)
+		if err != nil {
+			// File not found — serve index.html for SPA routing.
+			indexFile, ierr := fsys.Open("index.html")
+			if ierr != nil {
+				http.NotFound(w, r)
+				return
+			}
+			defer safe.Close(r.Context(), indexFile)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			safe.Copy(r.Context(), w, indexFile)
+			return
+		}
+		// File exists — close our probe handle and let FileServer stream it.
+		safe.Close(r.Context(), file)
+		fileServer.ServeHTTP(w, r)
+	}
 }
 
 // ---- response helpers ----
