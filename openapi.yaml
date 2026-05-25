@@ -184,11 +184,15 @@ paths:
   /api/v1/iocs:
     get:
       operationId: listRecentIoCs
-      summary: List recent IoCs (LastSeenAt desc)
+      summary: List recent IoCs (LastSeenAt desc, paged via cursor)
       description: |
-        Returns the most recently observed IoCs for the operator UI.
-        Bulk analytics still belong in BigQuery — this endpoint caps
-        the result count and exposes no pagination cursor.
+        Returns recently observed IoCs for the operator UI in pages of
+        up to `limit`. The cursor is the (lastSeenAt, id) pair returned
+        as `nextCursor` from the previous page — both fields MUST be
+        echoed back as `?after=&afterId=` on the next call. Feed-kind
+        sources persist whole batches with the same LastSeenAt, so a
+        timestamp-only cursor would silently drop the rest of the
+        same-timestamp batch.
       tags: [iocs]
       parameters:
         - in: query
@@ -199,19 +203,25 @@ paths:
             minimum: 1
             maximum: 500
             default: 100
+        - in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: LastSeenAt component of the cursor. Required together with `afterId`.
+        - in: query
+          name: afterId
+          required: false
+          schema: {type: string}
+          description: IoC ID component of the cursor. Required together with `after`.
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                type: object
-                required: [iocs]
-                properties:
-                  iocs:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/IoC"
+                $ref: "#/components/schemas/IoCListResponse"
         "400":
           $ref: "#/components/responses/InvalidInput"
 
@@ -415,6 +425,22 @@ components:
           type: boolean
           description: True when the runId points at a pre-existing Run that was still in progress
           default: false
+
+    IoCListCursor:
+      type: object
+      required: [lastSeenAt, id]
+      properties:
+        lastSeenAt: {type: string, format: date-time}
+        id: {type: string}
+
+    IoCListResponse:
+      type: object
+      required: [iocs]
+      properties:
+        iocs:
+          type: array
+          items: {$ref: "#/components/schemas/IoC"}
+        nextCursor: {$ref: "#/components/schemas/IoCListCursor"}
 
     IoCStatsResponse:
       type: object

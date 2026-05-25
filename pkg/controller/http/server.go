@@ -201,6 +201,16 @@ func (s *Server) triggerFetchAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mode := r.URL.Query().Get("mode")
+	// Honour the OpenAPI default so a missing parameter doesn't echo
+	// back an empty string and break the {sync, async} enum contract.
+	if mode == "" {
+		mode = "sync"
+	}
+	if mode != "sync" && mode != "async" {
+		writeProblem(w, http.StatusBadRequest, "invalid_input",
+			"mode must be one of: sync, async", map[string]any{"mode": mode})
+		return
+	}
 
 	// De-duplicate concurrent fetch calls (Cloud Scheduler retries, UI
 	// double-clicks): if a Run is still in progress, hand the caller
@@ -330,14 +340,27 @@ func (s *Server) listRecentIoCs(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = n
 	}
-	var after *time.Time
-	if v := q.Get("after"); v != "" {
-		t, err := time.Parse(time.RFC3339Nano, v)
+	// Cursor uses both ?after (LastSeenAt) and ?afterId (IoC.ID).
+	// Both are required together — feed-kind fetches give every IoC
+	// of a batch the same LastSeenAt, so a timestamp-only cursor
+	// would silently drop the rest of the same-timestamp batch.
+	var after *model.IoCListCursor
+	rawAfter := q.Get("after")
+	rawAfterID := q.Get("afterId")
+	switch {
+	case rawAfter == "" && rawAfterID == "":
+		// head of stream
+	case rawAfter == "" || rawAfterID == "":
+		writeProblem(w, http.StatusBadRequest, "invalid_input",
+			"after and afterId must be supplied together", nil)
+		return
+	default:
+		t, err := time.Parse(time.RFC3339Nano, rawAfter)
 		if err != nil {
 			writeProblem(w, http.StatusBadRequest, "invalid_input", "after must be an RFC 3339 timestamp", nil)
 			return
 		}
-		after = &t
+		after = &model.IoCListCursor{LastSeenAt: t, ID: types.IoCID(rawAfterID)}
 	}
 	iocs, err := usecase.ListRecentIoCsAfter(r.Context(), s.Deps.Repo, limit, after)
 	if err != nil {
@@ -352,7 +375,11 @@ func (s *Server) listRecentIoCs(w http.ResponseWriter, r *http.Request) {
 	// Only emit nextCursor when the page is full — otherwise the
 	// client knows it has reached the tail.
 	if limit > 0 && len(iocs) == limit && len(iocs) > 0 {
-		resp["nextCursor"] = iocs[len(iocs)-1].LastSeenAt.Format(time.RFC3339Nano)
+		tail := iocs[len(iocs)-1]
+		resp["nextCursor"] = map[string]any{
+			"lastSeenAt": tail.LastSeenAt.Format(time.RFC3339Nano),
+			"id":         tail.ID,
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

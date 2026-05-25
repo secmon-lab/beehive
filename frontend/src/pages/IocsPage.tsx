@@ -32,9 +32,14 @@ interface IoC {
   lastSeenAt?: string;
 }
 
+interface IoCListCursor {
+  lastSeenAt: string;
+  id: string;
+}
+
 interface IoCListResponse {
   iocs: IoC[];
-  nextCursor?: string;
+  nextCursor?: IoCListCursor;
 }
 
 interface IoCStatsResponse {
@@ -75,15 +80,20 @@ export function IocsPage() {
 
   // Cursor-based pagination via React Query infinite query. The server
   // returns up to PAGE_SIZE IoCs per chunk plus a nextCursor we feed
-  // straight back as ?after= on the next call.
+  // back verbatim — both lastSeenAt and id are required, see backend
+  // commentary in pkg/repository/firestore/ioc.go::ListRecentIoCsAfter.
   const recent = useInfiniteQuery<IoCListResponse, Error>({
     queryKey: ["iocs", "recent"],
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
-      if (pageParam) params.set("after", String(pageParam));
+      const cursor = pageParam as IoCListCursor | undefined;
+      if (cursor) {
+        params.set("after", cursor.lastSeenAt);
+        params.set("afterId", cursor.id);
+      }
       return fetchJSON<IoCListResponse>(`/api/v1/iocs?${params.toString()}`);
     },
-    initialPageParam: undefined as string | undefined,
+    initialPageParam: undefined as IoCListCursor | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 

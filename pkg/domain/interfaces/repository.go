@@ -5,7 +5,6 @@ package interfaces
 
 import (
 	"context"
-	"time"
 
 	"github.com/secmon-lab/beehive/pkg/domain/model"
 	"github.com/secmon-lab/beehive/pkg/domain/types"
@@ -115,13 +114,18 @@ type IoCRepository interface {
 	SaveIoCCounts(ctx context.Context, counts *model.IoCCounts) error
 
 	// ListRecentIoCsAfter returns up to `limit` IoCs ordered by
-	// LastSeenAt descending, strictly older than the supplied
-	// cursor. Pass a nil cursor to start at the head of the
-	// collection. Cursors use LastSeenAt only — same-timestamp
-	// boundary jitter is accepted in exchange for not requiring a
-	// composite index (the existing single-field LastSeenAt index
-	// suffices).
-	ListRecentIoCsAfter(ctx context.Context, limit int, after *time.Time) ([]*model.IoC, error)
+	// (LastSeenAt DESC, ID ASC), strictly past the supplied cursor.
+	// Pass a nil cursor to start at the head of the collection.
+	//
+	// The cursor is a (LastSeenAt, ID) pair instead of LastSeenAt
+	// alone because feed-kind sources persist every IoC of a batch
+	// with the same LastSeenAt (see usecase/fetch.go::
+	// bulkPersistSeeds). A LastSeenAt-only cursor would silently
+	// drop every same-timestamp document past the page break.
+	// Firestore needs a composite index on (LastSeenAt DESC,
+	// __name__ ASC) for this to run — the operator URL printed in
+	// the startup error tells which index to create.
+	ListRecentIoCsAfter(ctx context.Context, limit int, after *model.IoCListCursor) ([]*model.IoC, error)
 }
 
 // ---- runs/{ID} ----

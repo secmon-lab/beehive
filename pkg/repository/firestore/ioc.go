@@ -33,20 +33,29 @@ func (f *Firestore) ListRecentIoCs(ctx context.Context, limit int) ([]*model.IoC
 	return f.ListRecentIoCsAfter(ctx, limit, nil)
 }
 
-// ListRecentIoCsAfter pages over the LastSeenAt-DESC stream. The
-// cursor key is `LastSeenAt` only (no DocumentID tiebreaker) so the
-// existing single-field index suffices — same-timestamp boundary
-// shuffles are accepted as a fair trade for not requiring an operator
-// to provision a composite index.
-func (f *Firestore) ListRecentIoCsAfter(ctx context.Context, limit int, after *time.Time) ([]*model.IoC, error) {
+// ListRecentIoCsAfter pages over the (LastSeenAt DESC, ID ASC) stream.
+// The cursor uses both fields because feed-kind sources stamp every
+// IoC of a batch with the same LastSeenAt (see usecase/fetch.go::
+// bulkPersistSeeds); a LastSeenAt-only cursor would silently drop
+// every same-timestamp document past the page break.
+//
+// Requires a Firestore composite index on
+//
+//	(LastSeenAt DESC, __name__ ASC)
+//
+// The first query against an un-indexed deployment will return a
+// FAILED_PRECONDITION error whose message includes a one-click URL to
+// create the index.
+func (f *Firestore) ListRecentIoCsAfter(ctx context.Context, limit int, after *model.IoCListCursor) ([]*model.IoC, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
 	q := f.client.Collection(collectionIoCs).
 		OrderBy("LastSeenAt", firestore.Desc).
+		OrderBy(firestore.DocumentID, firestore.Asc).
 		Limit(limit)
 	if after != nil {
-		q = q.Where("LastSeenAt", "<", *after)
+		q = q.StartAfter(after.LastSeenAt, string(after.ID))
 	}
 	iter := q.Documents(ctx)
 	defer iter.Stop()

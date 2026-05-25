@@ -428,31 +428,106 @@ func TestListRecentIoCsAfter(t *testing.T) {
 				Value:       value,
 				Raw:         value,
 				FirstSeenAt: base,
-				// 1-second spacing keeps the order stable across the
-				// LastSeenAt cursor without needing a tiebreaker.
-				LastSeenAt: base.Add(time.Duration(i+1) * time.Second),
+				LastSeenAt:  base.Add(time.Duration(i+1) * time.Second),
 			}
 			gt.NoError(t, repo.UpsertIoCWithRef(ctx, ioc, nil)).Required()
 			seeded = append(seeded, ioc)
 		}
 
-		// Pull only the just-seeded entries via a cursor that
-		// sits strictly newer than any of them, so the shared Firestore
-		// DB cannot leak unrelated rows into the assertion.
-		afterFirstPage := base.Add(time.Duration(len(seeded)+1) * time.Second)
+		// Cursor sits strictly newer than any seeded entry so the
+		// shared Firestore DB cannot leak unrelated rows in.
+		afterFirstPage := &model.IoCListCursor{
+			LastSeenAt: base.Add(time.Duration(len(seeded)+1) * time.Second),
+			// Empty ID is fine here — Firestore string compare puts
+			// "" before any real ID, so the boundary still excludes
+			// everything strictly newer than LastSeenAt.
+		}
 
-		page1, err := repo.ListRecentIoCsAfter(ctx, 2, &afterFirstPage)
+		page1, err := repo.ListRecentIoCsAfter(ctx, 2, afterFirstPage)
 		gt.NoError(t, err).Required()
 		gt.A(t, page1).Length(2)
-		// Newest first within the seeded set.
 		gt.Equal(t, page1[0].ID, seeded[4].ID)
 		gt.Equal(t, page1[1].ID, seeded[3].ID)
 
-		page2, err := repo.ListRecentIoCsAfter(ctx, 2, &page1[1].LastSeenAt)
+		page2, err := repo.ListRecentIoCsAfter(ctx, 2, &model.IoCListCursor{
+			LastSeenAt: page1[1].LastSeenAt,
+			ID:         page1[1].ID,
+		})
 		gt.NoError(t, err).Required()
 		gt.A(t, page2).Length(2)
 		gt.Equal(t, page2[0].ID, seeded[2].ID)
 		gt.Equal(t, page2[1].ID, seeded[1].ID)
+	})
+}
+
+// TestListRecentIoCsAfter_SameTimestampBoundary covers the bug Gemini
+// flagged: a bulk-persisted batch shares a single LastSeenAt, so a
+// LastSeenAt-only cursor would silently drop every same-timestamp
+// document past the page break. The composite (LastSeenAt, ID) cursor
+// MUST surface every row in two consecutive pages.
+func TestListRecentIoCsAfter_SameTimestampBoundary(t *testing.T) {
+	runOnBoth(t, func(t *testing.T, repo interfaces.Repository) {
+		ctx := context.Background()
+
+		seedSuffix := id.NewULID()
+		stamp := time.Now().UTC()
+		// Seed four IoCs that share the same LastSeenAt — mirrors a
+		// single feed-fetch batch.
+		seeded := make([]*model.IoC, 0, 4)
+		for i := 0; i < 4; i++ {
+			value := seedSuffix + "-batch-" + id.NewULID()
+			ioc := &model.IoC{
+				ID:          model.ComputeIoCID(types.IoCTypeIPv4, value),
+				Type:        types.IoCTypeIPv4,
+				Value:       value,
+				Raw:         value,
+				FirstSeenAt: stamp,
+				LastSeenAt:  stamp,
+			}
+			gt.NoError(t, repo.UpsertIoCWithRef(ctx, ioc, nil)).Required()
+			seeded = append(seeded, ioc)
+		}
+
+		// Filter helper to drop any unrelated rows the shared
+		// Firestore DB may carry.
+		ours := map[types.IoCID]bool{}
+		for _, i := range seeded {
+			ours[i.ID] = true
+		}
+		filter := func(in []*model.IoC) []*model.IoC {
+			out := make([]*model.IoC, 0, len(in))
+			for _, i := range in {
+				if ours[i.ID] {
+					out = append(out, i)
+				}
+			}
+			return out
+		}
+
+		// Walk the four entries in two pages of 2. The same-timestamp
+		// items must all surface across the boundary.
+		page1, err := repo.ListRecentIoCsAfter(ctx, 2, &model.IoCListCursor{
+			LastSeenAt: stamp.Add(time.Second), // strictly newer than our batch
+		})
+		gt.NoError(t, err).Required()
+		got1 := filter(page1)
+		gt.A(t, got1).Length(2)
+
+		page2, err := repo.ListRecentIoCsAfter(ctx, 2, &model.IoCListCursor{
+			LastSeenAt: got1[len(got1)-1].LastSeenAt,
+			ID:         got1[len(got1)-1].ID,
+		})
+		gt.NoError(t, err).Required()
+		got2 := filter(page2)
+
+		seen := map[types.IoCID]bool{}
+		for _, i := range append(append([]*model.IoC{}, got1...), got2...) {
+			seen[i.ID] = true
+		}
+		// All four batched entries must show up across the two pages.
+		for _, want := range seeded {
+			gt.True(t, seen[want.ID])
+		}
 	})
 }
 

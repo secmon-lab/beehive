@@ -40,8 +40,8 @@ func ListRecentIoCs(ctx context.Context, repo interfaces.IoCRepository, limit in
 }
 
 // ListRecentIoCsAfter pages over the recent-IoCs list using a
-// LastSeenAt cursor. Pass nil to start at the head.
-func ListRecentIoCsAfter(ctx context.Context, repo interfaces.IoCRepository, limit int, after *time.Time) ([]*model.IoC, error) {
+// (LastSeenAt, ID) cursor. Pass nil to start at the head.
+func ListRecentIoCsAfter(ctx context.Context, repo interfaces.IoCRepository, limit int, after *model.IoCListCursor) ([]*model.IoC, error) {
 	if limit <= 0 {
 		limit = IoCListDefaultLimit
 	}

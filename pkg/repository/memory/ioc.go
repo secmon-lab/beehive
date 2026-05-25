@@ -3,7 +3,6 @@ package memory
 import (
 	"context"
 	"sort"
-	"time"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/secmon-lab/beehive/pkg/domain/model"
@@ -109,9 +108,10 @@ func (m *Memory) ListRecentIoCs(ctx context.Context, limit int) ([]*model.IoC, e
 	return m.ListRecentIoCsAfter(ctx, limit, nil)
 }
 
-// ListRecentIoCsAfter returns up to `limit` IoCs strictly older than
-// the supplied LastSeenAt cursor. Pass nil to start at the head.
-func (m *Memory) ListRecentIoCsAfter(_ context.Context, limit int, after *time.Time) ([]*model.IoC, error) {
+// ListRecentIoCsAfter returns up to `limit` IoCs strictly past the
+// supplied (LastSeenAt, ID) cursor under (LastSeenAt DESC, ID ASC)
+// ordering. Pass nil to start at the head.
+func (m *Memory) ListRecentIoCsAfter(_ context.Context, limit int, after *model.IoCListCursor) ([]*model.IoC, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
@@ -120,9 +120,6 @@ func (m *Memory) ListRecentIoCsAfter(_ context.Context, limit int, after *time.T
 
 	out := make([]*model.IoC, 0, len(m.iocs))
 	for _, i := range m.iocs {
-		if after != nil && !i.LastSeenAt.Before(*after) {
-			continue
-		}
 		out = append(out, cloneIoC(i))
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -131,6 +128,22 @@ func (m *Memory) ListRecentIoCsAfter(_ context.Context, limit int, after *time.T
 		}
 		return out[i].ID < out[j].ID
 	})
+	if after != nil {
+		// Find the first element strictly past the cursor under
+		// (LastSeenAt DESC, ID ASC) order.
+		idx := len(out)
+		for k, i := range out {
+			if i.LastSeenAt.Equal(after.LastSeenAt) && i.ID > after.ID {
+				idx = k
+				break
+			}
+			if i.LastSeenAt.Before(after.LastSeenAt) {
+				idx = k
+				break
+			}
+		}
+		out = out[idx:]
+	}
 	if len(out) > limit {
 		out = out[:limit]
 	}
